@@ -1,12 +1,7 @@
-import Sidebar from '@/components/Sidebar'
+'use client'
+import { createBrowserClient } from '@supabase/ssr'
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#0f1117' }}>
-      <Sidebar />
-      <main style={{ flex: 1, padding: '28px', overflowY: 'auto' }}>
-        {children}
-      </main>
-    </div>
-  )
-}
+export const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
