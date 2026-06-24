@@ -22,15 +22,35 @@ export default function UsuariosPage() {
   const [profiles, setProfiles] = useState<any[]>([])
   const [restaurants, setRestaurants] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [showInvitar, setShowInvitar] = useState(false)
+  const [showNuevo, setShowNuevo] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [errorInvitar, setErrorInvitar] = useState('')
+  const [error, setError] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
-  const [invitar, setInvitar] = useState({ email: '', role: 'empleado', restaurant_id: '' })
+  const [showPass, setShowPass] = useState(false)
+
+  const [nuevo, setNuevo] = useState({
+    nombre: '',
+    username: '',
+    email: '',
+    password: '',
+    role: 'empleado',
+    restaurant_id: '',
+  })
+
+  // Modal editar usuario
+  const [showEditar, setShowEditar] = useState(false)
+  const [editando, setEditando] = useState<any>(null)
+  const [editPass, setEditPass] = useState('')
+  const [editRole, setEditRole] = useState('')
+  const [editUsername, setEditUsername] = useState('')
+  const [editNombre, setEditNombre] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [errorEdit, setErrorEdit] = useState('')
+  const [successEdit, setSuccessEdit] = useState('')
 
   const load = async () => {
     const [{ data: profs }, { data: rests }] = await Promise.all([
-      supabase.from('profiles').select('*, restaurants(name)'),
+      supabase.from('profiles').select('*, restaurants(name)').order('nombre'),
       supabase.from('restaurants').select('id, name').order('name')
     ])
     setProfiles(profs || [])
@@ -40,32 +60,122 @@ export default function UsuariosPage() {
 
   useEffect(() => { load() }, [])
 
-  const sendInvite = async () => {
-    setErrorInvitar('')
+  // Generar username automático a partir del nombre
+  const generarUsername = (nombre: string) => {
+    return nombre.toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quitar acentos
+      .replace(/\s+/g, '.') // espacios → puntos
+      .replace(/[^a-z0-9.]/g, '') // solo alfanuméricos y puntos
+  }
+
+  const handleNombreChange = (nombre: string) => {
+    setNuevo(prev => ({
+      ...prev,
+      nombre,
+      username: generarUsername(nombre),
+      email: `${generarUsername(nombre)}@restop.internal`,
+    }))
+  }
+
+  const crearUsuario = async () => {
+    setError('')
     setSuccessMsg('')
-    if (!invitar.email.trim() || !invitar.email.includes('@')) {
-      setErrorInvitar('Ingresá un email válido.')
-      return
-    }
-    if (!invitar.restaurant_id) {
-      setErrorInvitar('Seleccioná un restaurante.')
-      return
-    }
+    if (!nuevo.nombre.trim()) { setError('El nombre es obligatorio.'); return }
+    if (!nuevo.username.trim()) { setError('El nombre de usuario es obligatorio.'); return }
+    if (!nuevo.password || nuevo.password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres.'); return }
+    if (!nuevo.restaurant_id) { setError('Seleccioná un restaurante.'); return }
+
     setSaving(true)
 
-    // Crear usuario en Supabase Auth con invitación
-    const { data, error } = await supabase.auth.admin
-      ? // Si hay acceso admin, usar inviteUserByEmail
-        // En producción necesitarás una Edge Function para esto
-        { data: null, error: { message: 'Usá una Edge Function para invitar usuarios desde el cliente' } }
-      : { data: null, error: { message: '' } }
+    // 1. Crear usuario en Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.admin
+      ? { data: null, error: null } // no disponible desde cliente
+      : { data: null, error: null }
 
-    // Fallback: insertar directamente en profiles si el usuario ya existe
-    // O mostrar instrucciones para invitar manualmente
+    // Como no podemos usar auth.admin desde el cliente,
+    // usamos signUp con el email interno generado
+    const emailInterno = `${nuevo.username.trim().toLowerCase()}@restop.internal`
+
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email: emailInterno,
+      password: nuevo.password,
+      options: {
+        data: {
+          nombre: nuevo.nombre,
+          username: nuevo.username.trim().toLowerCase(),
+        }
+      }
+    })
+
+    if (signUpError || !signUpData.user) {
+      setError('Error al crear usuario: ' + (signUpError?.message || 'desconocido'))
+      setSaving(false)
+      return
+    }
+
+    // 2. Actualizar el profile generado automáticamente
+    const { error: profileError } = await supabase.from('profiles').upsert({
+      id: signUpData.user.id,
+      nombre: nuevo.nombre.trim(),
+      username: nuevo.username.trim().toLowerCase(),
+      email: emailInterno,
+      role: nuevo.role,
+      restaurant_id: nuevo.restaurant_id,
+    })
+
     setSaving(false)
 
-    // Mostrar mensaje de éxito informativo
-    setSuccessMsg(`Invitación preparada para ${invitar.email} como ${ROLES[invitar.role]?.label}. Para completar la invitación, usá el panel de Supabase → Authentication → Invite user, y luego asigná el rol desde esta pantalla.`)
+    if (profileError) {
+      setError('Usuario creado pero error al guardar perfil: ' + profileError.message)
+      return
+    }
+
+    setSuccessMsg(`✓ Usuario "${nuevo.username}" creado correctamente. Ya puede iniciar sesión.`)
+    setNuevo({ nombre: '', username: '', email: '', password: '', role: 'empleado', restaurant_id: '' })
+    load()
+  }
+
+  const abrirEditar = (p: any) => {
+    setEditando(p)
+    setEditUsername(p.username || '')
+    setEditNombre(p.nombre || '')
+    setEditRole(p.role || 'empleado')
+    setEditPass('')
+    setErrorEdit('')
+    setSuccessEdit('')
+    setShowEditar(true)
+  }
+
+  const guardarEdicion = async () => {
+    setErrorEdit('')
+    setSavingEdit(true)
+
+    const updates: any = {
+      role: editRole,
+      nombre: editNombre.trim(),
+      username: editUsername.trim().toLowerCase(),
+    }
+
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', editando.id)
+
+    if (profileError) {
+      setErrorEdit('Error al guardar: ' + profileError.message)
+      setSavingEdit(false)
+      return
+    }
+
+    // Si hay nueva contraseña, mostrar instrucción (no se puede cambiar desde cliente sin ser el mismo usuario)
+    if (editPass && editPass.length >= 6) {
+      setSuccessEdit('Perfil actualizado. Para cambiar la contraseña, el usuario debe hacerlo desde su sesión, o usá el panel de Supabase → Authentication → Users.')
+    } else {
+      setSuccessEdit('✓ Perfil actualizado correctamente.')
+    }
+
+    setSavingEdit(false)
+    load()
   }
 
   const cambiarRol = async (profileId: string, nuevoRol: string) => {
@@ -82,14 +192,16 @@ export default function UsuariosPage() {
           <h1 style={{ fontSize: '22px', fontWeight: 600, color: '#f9fafb' }}>Usuarios</h1>
           <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>{profiles.length} usuarios en el sistema</p>
         </div>
-        <button onClick={() => setShowInvitar(true)} style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', cursor: 'pointer' }}>
-          + Invitar usuario
+        <button onClick={() => { setShowNuevo(true); setError(''); setSuccessMsg('') }}
+          style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', cursor: 'pointer' }}>
+          + Crear usuario
         </button>
       </div>
 
+      {/* Tabla de usuarios */}
       <div style={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '12px', overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 120px', padding: '10px 20px', background: '#111827', borderBottom: '1px solid #374151' }}>
-          {['Usuario', 'Local', 'Rol', 'Cambiar rol'].map(h => (
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 80px', padding: '10px 20px', background: '#111827', borderBottom: '1px solid #374151' }}>
+          {['Usuario', 'Nombre', 'Local', 'Rol', 'Editar'].map(h => (
             <div key={h} style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</div>
           ))}
         </div>
@@ -104,25 +216,21 @@ export default function UsuariosPage() {
           const rol = ROLES[p.role] || ROLES.empleado
           return (
             <div key={p.id} style={{
-              display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 120px',
+              display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 80px',
               padding: '14px 20px', alignItems: 'center',
               borderBottom: i < profiles.length - 1 ? '1px solid #1f2937' : 'none'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#374151', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#9ca3af', flexShrink: 0 }}>
-                  {(p.email || p.id).slice(0, 2).toUpperCase()}
+                  {(p.username || p.nombre || '?').slice(0, 2).toUpperCase()}
                 </div>
                 <div>
-                  <div style={{ fontSize: '14px', color: '#f9fafb' }}>{p.email || p.id.slice(0, 12) + '...'}</div>
-                  <div style={{ fontSize: '11px', color: '#4b5563' }}>{p.id.slice(0, 8)}...</div>
+                  <div style={{ fontSize: '14px', color: '#f9fafb' }}>{p.username || '—'}</div>
+                  <div style={{ fontSize: '11px', color: '#4b5563' }}>{p.email || ''}</div>
                 </div>
               </div>
+              <div style={{ fontSize: '14px', color: '#9ca3af' }}>{p.nombre || '—'}</div>
               <div style={{ fontSize: '14px', color: '#9ca3af' }}>{p.restaurants?.name || '—'}</div>
-              <div>
-                <span style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '20px', background: rol.bg, color: rol.color, border: `1px solid ${rol.border}` }}>
-                  {rol.label}
-                </span>
-              </div>
               <div>
                 <select
                   value={p.role}
@@ -134,65 +242,164 @@ export default function UsuariosPage() {
                   ))}
                 </select>
               </div>
+              <div>
+                <button onClick={() => abrirEditar(p)}
+                  style={{ fontSize: '12px', padding: '5px 10px', background: 'transparent', border: '1px solid #374151', borderRadius: '6px', color: '#9ca3af', cursor: 'pointer' }}>
+                  Editar
+                </button>
+              </div>
             </div>
           )
         })}
       </div>
 
-      {/* MODAL INVITAR */}
-      {showInvitar && (
+      {/* MODAL CREAR USUARIO */}
+      {showNuevo && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: '#111827', border: '1px solid #374151', borderRadius: '16px', padding: '28px', width: '400px', maxWidth: '90vw' }}>
-            <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#f9fafb', marginBottom: '4px' }}>Invitar usuario</h2>
-            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>El usuario recibirá un link para crear su contraseña</p>
+          <div style={{ background: '#111827', border: '1px solid #374151', borderRadius: '16px', padding: '28px', width: '420px', maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#f9fafb', marginBottom: '4px' }}>Crear usuario</h2>
+            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>El empleado iniciará sesión con su usuario y contraseña</p>
 
-            <label style={labelStyle}>Email *</label>
-            <input type="email" value={invitar.email} onChange={e => setInvitar({ ...invitar, email: e.target.value })}
-              placeholder="usuario@email.com" style={{ ...inputStyle, marginBottom: '14px' }} />
+            <label style={labelStyle}>Nombre completo *</label>
+            <input value={nuevo.nombre} onChange={e => handleNombreChange(e.target.value)}
+              placeholder="Ej: Juan Pérez" style={{ ...inputStyle, marginBottom: '14px' }} />
+
+            <label style={labelStyle}>Nombre de usuario *</label>
+            <input value={nuevo.username}
+              onChange={e => setNuevo({ ...nuevo, username: e.target.value.toLowerCase().replace(/\s/g, '') })}
+              placeholder="juan.perez" style={{ ...inputStyle, marginBottom: '4px' }}
+              autoCapitalize="none" autoCorrect="off" />
+            <p style={{ fontSize: '11px', color: '#4b5563', marginBottom: '14px' }}>Se genera automático desde el nombre. Con esto iniciará sesión.</p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+              <div>
+                <label style={labelStyle}>Contraseña *</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showPass ? 'text' : 'password'}
+                    value={nuevo.password}
+                    onChange={e => setNuevo({ ...nuevo, password: e.target.value })}
+                    placeholder="Mín. 6 caracteres"
+                    style={{ ...inputStyle, paddingRight: '40px' }}
+                  />
+                  <button onClick={() => setShowPass(!showPass)}
+                    style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '13px' }}>
+                    {showPass ? '🙈' : '👁'}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label style={labelStyle}>Rol</label>
+                <select value={nuevo.role} onChange={e => setNuevo({ ...nuevo, role: e.target.value })}
+                  style={{ ...inputStyle }}>
+                  {Object.entries(ROLES).map(([key, val]) => (
+                    <option key={key} value={key}>{val.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
             <label style={labelStyle}>Restaurante *</label>
-            <select value={invitar.restaurant_id} onChange={e => setInvitar({ ...invitar, restaurant_id: e.target.value })}
-              style={{ ...inputStyle, marginBottom: '14px' }}>
+            <select value={nuevo.restaurant_id} onChange={e => setNuevo({ ...nuevo, restaurant_id: e.target.value })}
+              style={{ ...inputStyle, marginBottom: '20px' }}>
               <option value="">Seleccioná un local</option>
               {restaurants.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
 
+            {/* Preview credenciales */}
+            {nuevo.username && (
+              <div style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '12px 16px', marginBottom: '16px' }}>
+                <div style={{ fontSize: '11px', color: '#60a5fa', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Credenciales de acceso</div>
+                <div style={{ fontSize: '13px', color: '#e5e7eb' }}>Usuario: <span style={{ color: '#f97316' }}>{nuevo.username}</span></div>
+                <div style={{ fontSize: '13px', color: '#e5e7eb', marginTop: '2px' }}>Contraseña: <span style={{ color: '#f97316' }}>{nuevo.password ? '••••••' : '—'}</span></div>
+              </div>
+            )}
+
+            {error && (
+              <div style={{ background: '#1c0a0a', border: '1px solid #7f1d1d', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#f87171', marginBottom: '16px' }}>
+                {error}
+              </div>
+            )}
+
+            {successMsg && (
+              <div style={{ background: '#052e16', border: '1px solid #166534', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#4ade80', marginBottom: '16px', lineHeight: 1.5 }}>
+                {successMsg}
+              </div>
+            )}
+
+            {!successMsg ? (
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={() => { setShowNuevo(false); setError('') }}
+                  style={{ flex: 1, background: 'transparent', border: '1px solid #374151', borderRadius: '8px', padding: '10px', color: '#9ca3af', fontSize: '13px', cursor: 'pointer' }}>
+                  Cancelar
+                </button>
+                <button onClick={crearUsuario} disabled={saving}
+                  style={{ flex: 1, background: '#f97316', border: 'none', borderRadius: '8px', padding: '10px', color: 'white', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>
+                  {saving ? 'Creando...' : 'Crear usuario'}
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => { setShowNuevo(false); setSuccessMsg('') }}
+                style={{ width: '100%', background: '#f97316', border: 'none', borderRadius: '8px', padding: '10px', color: 'white', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>
+                Listo
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDITAR USUARIO */}
+      {showEditar && editando && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: '#111827', border: '1px solid #374151', borderRadius: '16px', padding: '28px', width: '400px', maxWidth: '90vw' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#f9fafb', marginBottom: '4px' }}>Editar usuario</h2>
+            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>{editando.username || editando.email}</p>
+
+            <label style={labelStyle}>Nombre completo</label>
+            <input value={editNombre} onChange={e => setEditNombre(e.target.value)}
+              style={{ ...inputStyle, marginBottom: '14px' }} />
+
+            <label style={labelStyle}>Nombre de usuario</label>
+            <input value={editUsername}
+              onChange={e => setEditUsername(e.target.value.toLowerCase().replace(/\s/g, ''))}
+              style={{ ...inputStyle, marginBottom: '14px' }}
+              autoCapitalize="none" autoCorrect="off" />
+
             <label style={labelStyle}>Rol</label>
-            <select value={invitar.role} onChange={e => setInvitar({ ...invitar, role: e.target.value })}
+            <select value={editRole} onChange={e => setEditRole(e.target.value)}
               style={{ ...inputStyle, marginBottom: '20px' }}>
               {Object.entries(ROLES).map(([key, val]) => (
                 <option key={key} value={key}>{val.label}</option>
               ))}
             </select>
 
-            {errorInvitar && (
+            {errorEdit && (
               <div style={{ background: '#1c0a0a', border: '1px solid #7f1d1d', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#f87171', marginBottom: '16px' }}>
-                {errorInvitar}
+                {errorEdit}
               </div>
             )}
 
-            {successMsg && (
-              <div style={{ background: '#052e16', border: '1px solid #166534', borderRadius: '8px', padding: '12px 14px', fontSize: '13px', color: '#4ade80', marginBottom: '16px', lineHeight: 1.5 }}>
-                ✓ {successMsg}
+            {successEdit && (
+              <div style={{ background: '#052e16', border: '1px solid #166534', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#4ade80', marginBottom: '16px', lineHeight: 1.5 }}>
+                {successEdit}
               </div>
             )}
 
-            {!successMsg && (
+            {!successEdit ? (
               <div style={{ display: 'flex', gap: '10px' }}>
-                <button onClick={() => { setShowInvitar(false); setErrorInvitar(''); setSuccessMsg('') }}
+                <button onClick={() => setShowEditar(false)}
                   style={{ flex: 1, background: 'transparent', border: '1px solid #374151', borderRadius: '8px', padding: '10px', color: '#9ca3af', fontSize: '13px', cursor: 'pointer' }}>
                   Cancelar
                 </button>
-                <button onClick={sendInvite} disabled={saving}
+                <button onClick={guardarEdicion} disabled={savingEdit}
                   style={{ flex: 1, background: '#f97316', border: 'none', borderRadius: '8px', padding: '10px', color: 'white', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>
-                  {saving ? 'Enviando...' : 'Invitar'}
+                  {savingEdit ? 'Guardando...' : 'Guardar cambios'}
                 </button>
               </div>
-            )}
-            {successMsg && (
-              <button onClick={() => { setShowInvitar(false); setSuccessMsg('') }}
+            ) : (
+              <button onClick={() => { setShowEditar(false); setSuccessEdit('') }}
                 style={{ width: '100%', background: '#f97316', border: 'none', borderRadius: '8px', padding: '10px', color: 'white', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>
-                Entendido
+                Listo
               </button>
             )}
           </div>

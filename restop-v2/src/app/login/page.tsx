@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -13,12 +13,56 @@ export default function LoginPage() {
   const handleLogin = async () => {
     setLoading(true)
     setError('')
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) { setError('Email o contraseña incorrectos'); setLoading(false); return }
+
+    if (!username.trim() || !password) {
+      setError('Completá usuario y contraseña')
+      setLoading(false)
+      return
+    }
+
+    // Buscar el email real asociado al username
+    const { data: userId, error: fnError } = await supabase
+      .rpc('get_user_id_by_username', { p_username: username.trim().toLowerCase() })
+
+    if (fnError || !userId) {
+      setError('Usuario o contraseña incorrectos')
+      setLoading(false)
+      return
+    }
+
+    // Obtener el email a partir del id (via profiles)
     const { data: profile } = await supabase
-      .from('profiles').select('role').eq('id', data.user.id).single()
-    if (profile?.role === 'franquiciado') router.push('/panel')
+      .from('profiles')
+      .select('email, role')
+      .eq('id', userId)
+      .single()
+
+    if (!profile?.email) {
+      setError('Usuario o contraseña incorrectos')
+      setLoading(false)
+      return
+    }
+
+    // Login con email real + contraseña
+    const { data, error: loginError } = await supabase.auth.signInWithPassword({
+      email: profile.email,
+      password,
+    })
+
+    if (loginError || !data.user) {
+      setError('Usuario o contraseña incorrectos')
+      setLoading(false)
+      return
+    }
+
+    if (profile.role === 'franquiciado') router.push('/panel')
     else router.push('/dashboard')
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', background: '#1f2937', border: '1px solid #374151',
+    borderRadius: '8px', padding: '10px 14px', color: '#f9fafb',
+    fontSize: '14px', outline: 'none', boxSizing: 'border-box'
   }
 
   return (
@@ -37,29 +81,32 @@ export default function LoginPage() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div>
-            <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '6px' }}>Email</label>
+            <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '6px' }}>
+              Usuario
+            </label>
             <input
-              type="email" value={email} onChange={e => setEmail(e.target.value)}
+              type="text"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleLogin()}
-              placeholder="tu@email.com"
-              style={{
-                width: '100%', background: '#1f2937', border: '1px solid #374151',
-                borderRadius: '8px', padding: '10px 14px', color: '#f9fafb',
-                fontSize: '14px', outline: 'none'
-              }}
+              placeholder="tu nombre de usuario"
+              autoCapitalize="none"
+              autoCorrect="off"
+              style={inputStyle}
             />
           </div>
+
           <div>
-            <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '6px' }}>Contraseña</label>
+            <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '6px' }}>
+              Contraseña
+            </label>
             <input
-              type="password" value={password} onChange={e => setPassword(e.target.value)}
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleLogin()}
               placeholder="••••••••"
-              style={{
-                width: '100%', background: '#1f2937', border: '1px solid #374151',
-                borderRadius: '8px', padding: '10px 14px', color: '#f9fafb',
-                fontSize: '14px', outline: 'none'
-              }}
+              style={inputStyle}
             />
           </div>
 
@@ -70,7 +117,8 @@ export default function LoginPage() {
           )}
 
           <button
-            onClick={handleLogin} disabled={loading}
+            onClick={handleLogin}
+            disabled={loading}
             style={{
               background: loading ? '#7c3010' : '#f97316', color: 'white',
               border: 'none', borderRadius: '8px', padding: '12px',
