@@ -8,22 +8,43 @@ const ESTADOS: Record<string, { label: string; color: string; bg: string; border
   con_diferencias: { label: 'Con diferencias', color: '#f87171', bg: '#1c0a0a', border: '#7f1d1d' },
 }
 
+const inputStyle: React.CSSProperties = {
+  width: '100%', background: '#1f2937', border: '1px solid #374151',
+  borderRadius: '8px', padding: '10px 14px', color: '#f9fafb',
+  fontSize: '14px', outline: 'none', boxSizing: 'border-box'
+}
+const labelStyle: React.CSSProperties = {
+  fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '6px'
+}
+
 export default function PedidosPage() {
   const [pedidos, setPedidos] = useState<any[]>([])
+  const [proveedores, setProveedores] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<string>('todos')
   const [role, setRole] = useState('')
+  const [restaurantId, setRestaurantId] = useState('')
   const [marcando, setMarcando] = useState<string | null>(null)
+  const [showNuevo, setShowNuevo] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [errorNuevo, setErrorNuevo] = useState('')
+  const [nuevo, setNuevo] = useState({
+    proveedor_id: '', fecha: new Date().toISOString().split('T')[0],
+    monto_total: '', descripcion: '', estado: 'pendiente'
+  })
 
   const load = async () => {
     const { data: profile } = await supabase.from('profiles').select('restaurant_id, role').single()
     if (!profile) return
     setRole(profile.role)
-    const { data } = await supabase
-      .from('pedidos').select('*, proveedores(nombre)')
-      .eq('restaurant_id', profile.restaurant_id)
-      .order('fecha', { ascending: false })
+    setRestaurantId(profile.restaurant_id)
+    const [{ data }, { data: provs }] = await Promise.all([
+      supabase.from('pedidos').select('*, proveedores(nombre)')
+        .eq('restaurant_id', profile.restaurant_id).order('fecha', { ascending: false }),
+      supabase.from('proveedores').select('id, nombre').eq('restaurant_id', profile.restaurant_id).order('nombre')
+    ])
     setPedidos(data || [])
+    setProveedores(provs || [])
     setLoading(false)
   }
 
@@ -33,6 +54,26 @@ export default function PedidosPage() {
     setMarcando(pedido.id)
     await supabase.from('pedidos').update({ estado: 'recibido' }).eq('id', pedido.id)
     setMarcando(null)
+    load()
+  }
+
+  const saveNuevo = async () => {
+    setErrorNuevo('')
+    if (!nuevo.proveedor_id) { setErrorNuevo('Seleccioná un proveedor.'); return }
+    if (!nuevo.fecha) { setErrorNuevo('La fecha es obligatoria.'); return }
+    setSaving(true)
+    const { error } = await supabase.from('pedidos').insert({
+      restaurant_id: restaurantId,
+      proveedor_id: nuevo.proveedor_id,
+      fecha: nuevo.fecha,
+      monto_total: nuevo.monto_total ? parseFloat(nuevo.monto_total) : null,
+      descripcion: nuevo.descripcion.trim() || null,
+      estado: nuevo.estado
+    })
+    setSaving(false)
+    if (error) { setErrorNuevo('Error al guardar: ' + error.message); return }
+    setShowNuevo(false)
+    setNuevo({ proveedor_id: '', fecha: new Date().toISOString().split('T')[0], monto_total: '', descripcion: '', estado: 'pendiente' })
     load()
   }
 
@@ -53,7 +94,7 @@ export default function PedidosPage() {
           </p>
         </div>
         {role === 'admin' && (
-          <button style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', cursor: 'pointer' }}>
+          <button onClick={() => setShowNuevo(true)} style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', cursor: 'pointer' }}>
             + Nuevo pedido
           </button>
         )}
@@ -93,7 +134,10 @@ export default function PedidosPage() {
               padding: '14px 20px', alignItems: 'center',
               borderBottom: i < pedidosFiltrados.length - 1 ? '1px solid #1f2937' : 'none'
             }}>
-              <div style={{ fontSize: '14px', color: '#f9fafb' }}>{pedido.proveedores?.nombre || '—'}</div>
+              <div>
+                <div style={{ fontSize: '14px', color: '#f9fafb' }}>{pedido.proveedores?.nombre || '—'}</div>
+                {pedido.descripcion && <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>{pedido.descripcion}</div>}
+              </div>
               <div style={{ fontSize: '13px', color: '#9ca3af' }}>
                 {new Date(pedido.fecha).toLocaleDateString('es-AR')}
               </div>
@@ -117,6 +161,65 @@ export default function PedidosPage() {
           )
         })}
       </div>
+
+      {/* MODAL NUEVO PEDIDO */}
+      {showNuevo && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: '#111827', border: '1px solid #374151', borderRadius: '16px', padding: '28px', width: '400px', maxWidth: '90vw' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#f9fafb', marginBottom: '4px' }}>Nuevo pedido</h2>
+            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>Registrá un pedido a proveedor</p>
+
+            <label style={labelStyle}>Proveedor *</label>
+            <select value={nuevo.proveedor_id} onChange={e => setNuevo({ ...nuevo, proveedor_id: e.target.value })}
+              style={{ ...inputStyle, marginBottom: '14px' }}>
+              <option value="">Seleccioná un proveedor</option>
+              {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+            </select>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+              <div>
+                <label style={labelStyle}>Fecha *</label>
+                <input type="date" value={nuevo.fecha} onChange={e => setNuevo({ ...nuevo, fecha: e.target.value })}
+                  style={{ ...inputStyle }} />
+              </div>
+              <div>
+                <label style={labelStyle}>Monto total $</label>
+                <input type="number" value={nuevo.monto_total} onChange={e => setNuevo({ ...nuevo, monto_total: e.target.value })}
+                  placeholder="0" style={{ ...inputStyle }} />
+              </div>
+            </div>
+
+            <label style={labelStyle}>Estado inicial</label>
+            <select value={nuevo.estado} onChange={e => setNuevo({ ...nuevo, estado: e.target.value })}
+              style={{ ...inputStyle, marginBottom: '14px' }}>
+              <option value="pendiente">Pendiente</option>
+              <option value="recibido">Recibido</option>
+              <option value="con_diferencias">Con diferencias</option>
+            </select>
+
+            <label style={labelStyle}>Descripción / notas</label>
+            <input type="text" value={nuevo.descripcion} onChange={e => setNuevo({ ...nuevo, descripcion: e.target.value })}
+              placeholder="Ej: Pedido semanal de frutas" style={{ ...inputStyle, marginBottom: '20px' }} />
+
+            {errorNuevo && (
+              <div style={{ background: '#1c0a0a', border: '1px solid #7f1d1d', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#f87171', marginBottom: '16px' }}>
+                {errorNuevo}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => { setShowNuevo(false); setErrorNuevo('') }}
+                style={{ flex: 1, background: 'transparent', border: '1px solid #374151', borderRadius: '8px', padding: '10px', color: '#9ca3af', fontSize: '13px', cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={saveNuevo} disabled={saving}
+                style={{ flex: 1, background: '#f97316', border: 'none', borderRadius: '8px', padding: '10px', color: 'white', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>
+                {saving ? 'Guardando...' : 'Crear pedido'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

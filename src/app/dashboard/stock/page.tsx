@@ -15,8 +15,18 @@ function Pill({ status }: { status: 'ok' | 'warn' | 'danger' }) {
   )
 }
 
+const inputStyle: React.CSSProperties = {
+  width: '100%', background: '#1f2937', border: '1px solid #374151',
+  borderRadius: '8px', padding: '10px 14px', color: '#f9fafb',
+  fontSize: '14px', outline: 'none', boxSizing: 'border-box'
+}
+const labelStyle: React.CSSProperties = {
+  fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '6px'
+}
+
 export default function StockPage() {
   const [items, setItems] = useState<any[]>([])
+  const [proveedores, setProveedores] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<string | null>(null)
   const [editVal, setEditVal] = useState('')
@@ -24,14 +34,26 @@ export default function StockPage() {
   const [mermaQty, setMermaQty] = useState('')
   const [mermaMotivo, setMermaMotivo] = useState('')
   const [role, setRole] = useState('')
+  const [restaurantId, setRestaurantId] = useState('')
   const [saving, setSaving] = useState(false)
+  const [showAgregar, setShowAgregar] = useState(false)
+  const [nuevo, setNuevo] = useState({
+    producto: '', unidad: 'kg', cantidad_actual: '', cantidad_minima: '', cantidad_objetivo: '',
+    proveedor_id: '', es_objetivo_por_dia: false
+  })
+  const [errorAgregar, setErrorAgregar] = useState('')
 
   const load = async () => {
     const { data: profile } = await supabase.from('profiles').select('restaurant_id, role').single()
     if (!profile) return
     setRole(profile.role)
-    const { data } = await supabase.from('stock').select('*, proveedores(nombre)').eq('restaurant_id', profile.restaurant_id).order('producto')
+    setRestaurantId(profile.restaurant_id)
+    const [{ data }, { data: provs }] = await Promise.all([
+      supabase.from('stock').select('*, proveedores(nombre)').eq('restaurant_id', profile.restaurant_id).order('producto'),
+      supabase.from('proveedores').select('id, nombre').eq('restaurant_id', profile.restaurant_id).order('nombre')
+    ])
     setItems(data || [])
+    setProveedores(provs || [])
     setLoading(false)
   }
 
@@ -63,6 +85,31 @@ export default function StockPage() {
     setSaving(false); load()
   }
 
+  const saveNuevo = async () => {
+    setErrorAgregar('')
+    if (!nuevo.producto.trim()) { setErrorAgregar('El nombre del producto es obligatorio.'); return }
+    if (!nuevo.cantidad_actual || !nuevo.cantidad_minima || !nuevo.cantidad_objetivo) {
+      setErrorAgregar('Completá las cantidades.'); return
+    }
+    setSaving(true)
+    const { error } = await supabase.from('stock').insert({
+      restaurant_id: restaurantId,
+      producto: nuevo.producto.trim(),
+      unidad: nuevo.unidad,
+      cantidad_actual: parseFloat(nuevo.cantidad_actual),
+      cantidad_minima: parseFloat(nuevo.cantidad_minima),
+      cantidad_objetivo: parseFloat(nuevo.cantidad_objetivo),
+      proveedor_id: nuevo.proveedor_id || null,
+      es_objetivo_por_dia: nuevo.es_objetivo_por_dia,
+      ultima_actualizacion_manual: new Date().toISOString()
+    })
+    setSaving(false)
+    if (error) { setErrorAgregar('Error al guardar: ' + error.message); return }
+    setShowAgregar(false)
+    setNuevo({ producto: '', unidad: 'kg', cantidad_actual: '', cantidad_minima: '', cantidad_objetivo: '', proveedor_id: '', es_objetivo_por_dia: false })
+    load()
+  }
+
   if (loading) return <div style={{ color: '#6b7280', padding: '40px', textAlign: 'center' }}>Cargando...</div>
 
   return (
@@ -73,7 +120,7 @@ export default function StockPage() {
           <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>{items.length} productos</p>
         </div>
         {role === 'admin' && (
-          <button style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', cursor: 'pointer' }}>
+          <button onClick={() => setShowAgregar(true)} style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', cursor: 'pointer' }}>
             + Agregar producto
           </button>
         )}
@@ -85,6 +132,12 @@ export default function StockPage() {
             <div key={h} style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</div>
           ))}
         </div>
+
+        {items.length === 0 && (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280', fontSize: '14px' }}>
+            No hay productos en stock. {role === 'admin' && 'Agregá el primero con el botón arriba.'}
+          </div>
+        )}
 
         {items.map((item, i) => (
           <div key={item.id} style={{
@@ -133,22 +186,101 @@ export default function StockPage() {
         ))}
       </div>
 
+      {/* MODAL AGREGAR PRODUCTO */}
+      {showAgregar && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: '#111827', border: '1px solid #374151', borderRadius: '16px', padding: '28px', width: '420px', maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#f9fafb', marginBottom: '4px' }}>Agregar producto</h2>
+            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>Nuevo ítem al inventario de stock</p>
+
+            <label style={labelStyle}>Nombre del producto *</label>
+            <input value={nuevo.producto} onChange={e => setNuevo({ ...nuevo, producto: e.target.value })}
+              placeholder="Ej: Harina 000" style={{ ...inputStyle, marginBottom: '14px' }} />
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+              <div>
+                <label style={labelStyle}>Unidad *</label>
+                <select value={nuevo.unidad} onChange={e => setNuevo({ ...nuevo, unidad: e.target.value })}
+                  style={{ ...inputStyle }}>
+                  {['kg', 'g', 'lt', 'ml', 'un', 'caja', 'bolsa', 'paquete'].map(u => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Proveedor</label>
+                <select value={nuevo.proveedor_id} onChange={e => setNuevo({ ...nuevo, proveedor_id: e.target.value })}
+                  style={{ ...inputStyle }}>
+                  <option value="">Sin proveedor</option>
+                  {proveedores.map(p => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+              <div>
+                <label style={labelStyle}>Stock actual *</label>
+                <input type="number" value={nuevo.cantidad_actual} onChange={e => setNuevo({ ...nuevo, cantidad_actual: e.target.value })}
+                  placeholder="0" style={{ ...inputStyle }} />
+              </div>
+              <div>
+                <label style={labelStyle}>Mínimo *</label>
+                <input type="number" value={nuevo.cantidad_minima} onChange={e => setNuevo({ ...nuevo, cantidad_minima: e.target.value })}
+                  placeholder="0" style={{ ...inputStyle }} />
+              </div>
+              <div>
+                <label style={labelStyle}>Objetivo *</label>
+                <input type="number" value={nuevo.cantidad_objetivo} onChange={e => setNuevo({ ...nuevo, cantidad_objetivo: e.target.value })}
+                  placeholder="0" style={{ ...inputStyle }} />
+              </div>
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={nuevo.es_objetivo_por_dia}
+                onChange={e => setNuevo({ ...nuevo, es_objetivo_por_dia: e.target.checked })}
+                style={{ width: '16px', height: '16px', accentColor: '#f97316' }} />
+              <span style={{ fontSize: '13px', color: '#9ca3af' }}>Objetivo es por día (para calcular pedidos)</span>
+            </label>
+
+            {errorAgregar && (
+              <div style={{ background: '#1c0a0a', border: '1px solid #7f1d1d', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#f87171', marginBottom: '16px' }}>
+                {errorAgregar}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => { setShowAgregar(false); setErrorAgregar('') }}
+                style={{ flex: 1, background: 'transparent', border: '1px solid #374151', borderRadius: '8px', padding: '10px', color: '#9ca3af', fontSize: '13px', cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={saveNuevo} disabled={saving}
+                style={{ flex: 1, background: '#f97316', border: 'none', borderRadius: '8px', padding: '10px', color: 'white', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>
+                {saving ? 'Guardando...' : 'Agregar producto'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL MERMA */}
       {mermaItem && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
           <div style={{ background: '#111827', border: '1px solid #374151', borderRadius: '16px', padding: '28px', width: '360px' }}>
             <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#f9fafb', marginBottom: '4px' }}>Registrar pérdida</h2>
             <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>{mermaItem.producto}</p>
 
-            <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '6px' }}>Cantidad ({mermaItem.unidad})</label>
+            <label style={labelStyle}>Cantidad ({mermaItem.unidad})</label>
             <input type="number" value={mermaQty} onChange={e => setMermaQty(e.target.value)}
               placeholder="0"
-              style={{ width: '100%', background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', padding: '10px 14px', color: '#f9fafb', fontSize: '14px', marginBottom: '12px', outline: 'none' }}
+              style={{ ...inputStyle, marginBottom: '12px' }}
             />
 
-            <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '6px' }}>Motivo (opcional)</label>
+            <label style={labelStyle}>Motivo (opcional)</label>
             <input type="text" value={mermaMotivo} onChange={e => setMermaMotivo(e.target.value)}
               placeholder="Vencimiento, caída, error..."
-              style={{ width: '100%', background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', padding: '10px 14px', color: '#f9fafb', fontSize: '14px', marginBottom: '20px', outline: 'none' }}
+              style={{ ...inputStyle, marginBottom: '20px' }}
             />
 
             <div style={{ display: 'flex', gap: '10px' }}>
