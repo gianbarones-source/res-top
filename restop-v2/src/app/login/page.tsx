@@ -20,43 +20,37 @@ export default function LoginPage() {
       return
     }
 
-    // Buscar el email real asociado al username
-    const { data: userId, error: fnError } = await supabase
-      .rpc('get_user_id_by_username', { p_username: username.trim().toLowerCase() })
-
-    if (fnError || !userId) {
-      setError('Usuario o contraseña incorrectos')
-      setLoading(false)
-      return
-    }
-
-    // Obtener el email a partir del id (via profiles)
-    const { data: profile } = await supabase
+    // Buscar el profile por username
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('email, role')
-      .eq('id', userId)
+      .select('id, email, role')
+      .eq('username', username.trim().toLowerCase())
       .single()
 
-    if (!profile?.email) {
+    console.log('Profile buscado:', username.trim().toLowerCase())
+    console.log('Profile resultado:', profile, profileError)
+
+    if (profileError || !profile) {
       setError('Usuario o contraseña incorrectos')
       setLoading(false)
       return
     }
 
-    // Login con email real + contraseña
-    const { data, error: loginError } = await supabase.auth.signInWithPassword({
+    // Login con el email del profile
+    const { error: loginError } = await supabase.auth.signInWithPassword({
       email: profile.email,
       password,
     })
 
-    if (loginError || !data.user) {
+    console.log('Login error:', loginError)
+
+    if (loginError) {
       setError('Usuario o contraseña incorrectos')
       setLoading(false)
       return
     }
 
-    if (profile.role === 'franquiciado') router.push('/panel')
-    else router.push('/dashboard')
+    router.push('/dashboard')
   }
 
   const inputStyle: React.CSSProperties = {
@@ -81,9 +75,7 @@ export default function LoginPage() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div>
-            <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '6px' }}>
-              Usuario
-            </label>
+            <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '6px' }}>Usuario</label>
             <input
               type="text"
               value={username}
@@ -97,9 +89,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '6px' }}>
-              Contraseña
-            </label>
+            <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '6px' }}>Contraseña</label>
             <input
               type="password"
               value={password}
@@ -123,7 +113,7 @@ export default function LoginPage() {
               background: loading ? '#7c3010' : '#f97316', color: 'white',
               border: 'none', borderRadius: '8px', padding: '12px',
               fontSize: '14px', fontWeight: 500, cursor: loading ? 'not-allowed' : 'pointer',
-              marginTop: '8px', transition: 'background 0.15s'
+              marginTop: '8px'
             }}
           >
             {loading ? 'Ingresando...' : 'Ingresar'}

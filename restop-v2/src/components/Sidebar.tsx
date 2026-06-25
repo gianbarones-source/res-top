@@ -3,8 +3,9 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
+import { useRestaurant } from '@/context/RestaurantContext'
 
-const adminLinks = [
+const mainLinks = [
   { href: '/dashboard', label: 'Dashboard', icon: '▦' },
   { href: '/dashboard/stock', label: 'Stock', icon: '📦' },
   { href: '/dashboard/proveedores', label: 'Proveedores', icon: '🚚' },
@@ -20,15 +21,14 @@ const adminOnlyLinks = [
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
-  const [role, setRole] = useState<string | null>(null)
   const [userName, setUserName] = useState('')
+  const { restaurants, selectedId, selectedName, setSelectedId, role } = useRestaurant()
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
-        setUserName(data.user.email?.split('@')[0] || '')
-        supabase.from('profiles').select('role').eq('id', data.user.id).single()
-          .then(({ data: p }) => setRole(p?.role || 'owner'))
+        supabase.from('profiles').select('username, nombre').eq('id', data.user.id).single()
+          .then(({ data: p }) => setUserName(p?.nombre || p?.username || data.user.email?.split('@')[0] || ''))
       }
     })
   }, [])
@@ -45,9 +45,10 @@ export default function Sidebar() {
 
   return (
     <aside style={{
-      width: '200px', background: '#111827', display: 'flex', flexDirection: 'column',
+      width: '210px', background: '#111827', display: 'flex', flexDirection: 'column',
       borderRight: '1px solid #1f2937', flexShrink: 0, minHeight: '100vh'
     }}>
+      {/* Logo */}
       <div style={{ padding: '20px', borderBottom: '1px solid #1f2937' }}>
         <div style={{ fontSize: '18px', fontWeight: 600, color: '#f97316' }}>Restop</div>
         {role && (
@@ -57,8 +58,39 @@ export default function Sidebar() {
         )}
       </div>
 
+      {/* Selector de local */}
+      {restaurants.length > 1 && (
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #1f2937' }}>
+          <div style={{ fontSize: '10px', color: '#4b5563', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>
+            Local activo
+          </div>
+          <select
+            value={selectedId}
+            onChange={e => setSelectedId(e.target.value)}
+            style={{
+              width: '100%', background: '#1f2937', border: '1px solid #374151',
+              borderRadius: '6px', padding: '6px 10px', color: '#f9fafb',
+              fontSize: '12px', outline: 'none', cursor: 'pointer'
+            }}
+          >
+            {restaurants.map(r => (
+              <option key={r.id} value={r.id}>{r.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Local único — solo mostrar nombre */}
+      {restaurants.length === 1 && (
+        <div style={{ padding: '10px 16px', borderBottom: '1px solid #1f2937' }}>
+          <div style={{ fontSize: '10px', color: '#4b5563', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>Local</div>
+          <div style={{ fontSize: '12px', color: '#9ca3af' }}>{selectedName}</div>
+        </div>
+      )}
+
+      {/* Nav */}
       <nav style={{ flex: 1, padding: '8px 0' }}>
-        {adminLinks.map(link => (
+        {mainLinks.map(link => (
           <Link key={link.href} href={link.href} style={{
             display: 'flex', alignItems: 'center', gap: '10px',
             padding: '10px 20px', fontSize: '13px', textDecoration: 'none',
@@ -93,6 +125,7 @@ export default function Sidebar() {
         )}
       </nav>
 
+      {/* Usuario */}
       <div style={{ padding: '16px 20px', borderTop: '1px solid #1f2937' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
           <div style={{
@@ -102,15 +135,15 @@ export default function Sidebar() {
           }}>
             {initials}
           </div>
-          <div>
-            <div style={{ fontSize: '13px', color: '#e5e7eb', fontWeight: 500 }}>{userName}</div>
+          <div style={{ overflow: 'hidden' }}>
+            <div style={{ fontSize: '13px', color: '#e5e7eb', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userName}</div>
             <div style={{ fontSize: '11px', color: '#6b7280' }}>{role}</div>
           </div>
         </div>
         <button onClick={handleLogout} style={{
           width: '100%', background: 'transparent', border: '1px solid #374151',
           borderRadius: '6px', padding: '6px', fontSize: '12px', color: '#6b7280',
-          cursor: 'pointer', transition: 'all 0.15s'
+          cursor: 'pointer'
         }}>
           Cerrar sesión
         </button>

@@ -1,4 +1,5 @@
 'use client'
+import { useRestaurant } from '@/context/RestaurantContext'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
@@ -21,7 +22,7 @@ function StatCard({ icon, value, label, color = '#f9fafb', alert = false, sub }:
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [role, setRole] = useState('')
+  const { selectedId: restaurantId, role } = useRestaurant()
   const [loading, setLoading] = useState(true)
 
   // Stats
@@ -38,12 +39,8 @@ export default function DashboardPage() {
   const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
 
   useEffect(() => {
+    if (!restaurantId) return
     const load = async () => {
-      const { data: profile } = await supabase.from('profiles').select('restaurant_id, role').single()
-      if (!profile) return
-      setRole(profile.role)
-      const rid = profile.restaurant_id
-
       const [
         { data: stock },
         { data: pedidos },
@@ -51,32 +48,27 @@ export default function DashboardPage() {
         { data: cajaHoy },
         { data: cajaRegistros },
       ] = await Promise.all([
-        supabase.from('stock').select('*').eq('restaurant_id', rid),
-        supabase.from('pedidos').select('*, proveedores(nombre)').eq('restaurant_id', rid).eq('estado', 'pendiente').order('fecha', { ascending: false }),
-        supabase.from('pedidos').select('monto_total').eq('restaurant_id', rid).gte('fecha', inicioMes),
-        supabase.from('caja_registros').select('*').eq('restaurant_id', rid).eq('fecha', hoy),
-        supabase.from('caja_registros').select('vta_efectivo, vta_tarjetas, vta_peya_efv, vta_peya_tickets').eq('restaurant_id', rid).gte('fecha', inicioMes),
+        supabase.from('stock').select('*').eq('restaurant_id', restaurantId),
+        supabase.from('pedidos').select('*, proveedores(nombre)').eq('restaurant_id', restaurantId).eq('estado', 'pendiente').order('fecha', { ascending: false }),
+        supabase.from('pedidos').select('monto_total').eq('restaurant_id', restaurantId).gte('fecha', inicioMes),
+        supabase.from('caja_registros').select('*').eq('restaurant_id', restaurantId).eq('fecha', hoy),
+        supabase.from('caja_registros').select('vta_total').eq('restaurant_id', restaurantId).gte('fecha', inicioMes),
       ])
-
       const alertas = (stock || []).filter((s: any) => s.cantidad_actual <= s.cantidad_minima)
       const totalGastos = (gastos || []).reduce((a: number, p: any) => a + (p.monto_total || 0), 0)
-      const totalVentas = (cajaRegistros || []).reduce((a: number, r: any) =>
-        a + r.vta_efectivo + r.vta_tarjetas + r.vta_peya_efv + r.vta_peya_tickets, 0)
-
+      const totalVentas = (cajaRegistros || []).reduce((a: number, r: any) => a + (r.vta_total || 0), 0)
       setStockAlertas(alertas)
       setPedidosPendientes(pedidos || [])
       setGastoMes(totalGastos)
       setVentasMes(totalVentas)
-
       const tm = (cajaHoy || []).find((c: any) => c.turno === 'TM') || null
       const tn = (cajaHoy || []).find((c: any) => c.turno === 'TN') || null
       setCajaTM(tm)
       setCajaTN(tn)
-
       setLoading(false)
     }
     load()
-  }, [])
+  }, [restaurantId])
 
   const totalVentasHoy = (cajaTM
     ? cajaTM.vta_efectivo + cajaTM.vta_tarjetas + cajaTM.vta_peya_efv + cajaTM.vta_peya_tickets

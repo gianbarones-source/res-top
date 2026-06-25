@@ -8,7 +8,7 @@ export default function ReportesPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: profile } = await supabase.from('profiles').select('restaurant_id').single()
+      const { data: profile } = await supabase.from('profiles').select('restaurant_id').eq('id', (await supabase.auth.getUser()).data.user!.id).single()
       if (!profile) return
       const rid = profile.restaurant_id
       const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]

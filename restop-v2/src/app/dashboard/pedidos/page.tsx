@@ -1,4 +1,5 @@
 'use client'
+import { useRestaurant } from '@/context/RestaurantContext'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
@@ -18,12 +19,11 @@ const labelStyle: React.CSSProperties = {
 }
 
 export default function PedidosPage() {
+  const { selectedId: restaurantId, role } = useRestaurant()
   const [pedidos, setPedidos] = useState<any[]>([])
   const [proveedores, setProveedores] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<string>('todos')
-  const [role, setRole] = useState('')
-  const [restaurantId, setRestaurantId] = useState('')
   const [marcando, setMarcando] = useState<string | null>(null)
   const [showNuevo, setShowNuevo] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -34,21 +34,18 @@ export default function PedidosPage() {
   })
 
   const load = async () => {
-    const { data: profile } = await supabase.from('profiles').select('restaurant_id, role').single()
-    if (!profile) return
-    setRole(profile.role)
-    setRestaurantId(profile.restaurant_id)
+    if (!restaurantId) return
     const [{ data }, { data: provs }] = await Promise.all([
       supabase.from('pedidos').select('*, proveedores(nombre)')
-        .eq('restaurant_id', profile.restaurant_id).order('fecha', { ascending: false }),
-      supabase.from('proveedores').select('id, nombre').eq('restaurant_id', profile.restaurant_id).order('nombre')
+        .eq('restaurant_id', restaurantId).order('fecha', { ascending: false }),
+      supabase.from('proveedores').select('id, nombre').eq('restaurant_id', restaurantId).order('nombre')
     ])
     setPedidos(data || [])
     setProveedores(provs || [])
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [restaurantId])
 
   const marcarRecibido = async (pedido: any) => {
     setMarcando(pedido.id)

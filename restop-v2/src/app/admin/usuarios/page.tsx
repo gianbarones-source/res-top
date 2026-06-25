@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
 const ROLES: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  owner: { label: 'Dueño', color: '#60a5fa', bg: '#0c1a2e', border: '#1e3a5f' },
+  
   admin: { label: 'Admin', color: '#f97316', bg: '#1c1917', border: '#78350f' },
   empleado: { label: 'Empleado', color: '#9ca3af', bg: '#1f2937', border: '#374151' },
   franquiciado: { label: 'Franquiciado', color: '#4ade80', bg: '#052e16', border: '#166534' },
@@ -73,7 +73,7 @@ export default function UsuariosPage() {
       ...prev,
       nombre,
       username: generarUsername(nombre),
-      email: `${generarUsername(nombre)}@restop.internal`,
+      email: `${generarUsername(nombre)}@restop.com`,
     }))
   }
 
@@ -82,7 +82,7 @@ export default function UsuariosPage() {
     setSuccessMsg('')
     if (!nuevo.nombre.trim()) { setError('El nombre es obligatorio.'); return }
     if (!nuevo.username.trim()) { setError('El nombre de usuario es obligatorio.'); return }
-    if (!nuevo.password || nuevo.password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres.'); return }
+    if (!nuevo.password || nuevo.password.length < 4) { setError('La contraseña debe tener al menos 6 caracteres.'); return }
     if (!nuevo.restaurant_id) { setError('Seleccioná un restaurante.'); return }
 
     setSaving(true)
@@ -94,7 +94,7 @@ export default function UsuariosPage() {
 
     // Como no podemos usar auth.admin desde el cliente,
     // usamos signUp con el email interno generado
-    const emailInterno = `${nuevo.username.trim().toLowerCase()}@restop.internal`
+    const emailInterno = `${nuevo.username.trim().toLowerCase()}@restop.com`
 
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email: emailInterno,
@@ -279,7 +279,7 @@ export default function UsuariosPage() {
                     type={showPass ? 'text' : 'password'}
                     value={nuevo.password}
                     onChange={e => setNuevo({ ...nuevo, password: e.target.value })}
-                    placeholder="Mín. 6 caracteres"
+                    placeholder="4 números"
                     style={{ ...inputStyle, paddingRight: '40px' }}
                   />
                   <button onClick={() => setShowPass(!showPass)}
