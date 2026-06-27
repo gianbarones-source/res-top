@@ -40,13 +40,16 @@ export default function UsuariosPage() {
   // Modal editar usuario
   const [showEditar, setShowEditar] = useState(false)
   const [editando, setEditando] = useState<any>(null)
-  const [editPass, setEditPass] = useState('')
   const [editRole, setEditRole] = useState('')
   const [editUsername, setEditUsername] = useState('')
   const [editNombre, setEditNombre] = useState('')
+  const [editRestaurantId, setEditRestaurantId] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const [errorEdit, setErrorEdit] = useState('')
   const [successEdit, setSuccessEdit] = useState('')
+
+  // Confirmar eliminar
+  const [confirmEliminar, setConfirmEliminar] = useState<any>(null)
 
   const load = async () => {
     const [{ data: profs }, { data: rests }] = await Promise.all([
@@ -140,10 +143,18 @@ export default function UsuariosPage() {
     setEditUsername(p.username || '')
     setEditNombre(p.nombre || '')
     setEditRole(p.role || 'empleado')
-    setEditPass('')
+    setEditRestaurantId(p.restaurant_id || '')
     setErrorEdit('')
     setSuccessEdit('')
     setShowEditar(true)
+  }
+
+  const eliminarUsuario = async (id: string) => {
+    setSaving(true)
+    await supabase.from('profiles').delete().eq('id', id)
+    setSaving(false)
+    setConfirmEliminar(null)
+    load()
   }
 
   const guardarEdicion = async () => {
@@ -154,6 +165,7 @@ export default function UsuariosPage() {
       role: editRole,
       nombre: editNombre.trim(),
       username: editUsername.trim().toLowerCase(),
+      restaurant_id: editRestaurantId || null,
     }
 
     const { error: profileError } = await supabase
@@ -167,13 +179,7 @@ export default function UsuariosPage() {
       return
     }
 
-    // Si hay nueva contraseña, mostrar instrucción (no se puede cambiar desde cliente sin ser el mismo usuario)
-    if (editPass && editPass.length >= 6) {
-      setSuccessEdit('Perfil actualizado. Para cambiar la contraseña, el usuario debe hacerlo desde su sesión, o usá el panel de Supabase → Authentication → Users.')
-    } else {
-      setSuccessEdit('✓ Perfil actualizado correctamente.')
-    }
-
+    setSuccessEdit('✓ Perfil actualizado correctamente.')
     setSavingEdit(false)
     load()
   }
@@ -242,10 +248,14 @@ export default function UsuariosPage() {
                   ))}
                 </select>
               </div>
-              <div>
+              <div style={{ display: 'flex', gap: '6px' }}>
                 <button onClick={() => abrirEditar(p)}
-                  style={{ fontSize: '12px', padding: '5px 10px', background: 'transparent', border: '1px solid #374151', borderRadius: '6px', color: '#9ca3af', cursor: 'pointer' }}>
+                  style={{ fontSize: '12px', padding: '5px 10px', background: 'transparent', border: '1px solid #374151', borderRadius: '6px', color: '#f97316', cursor: 'pointer' }}>
                   Editar
+                </button>
+                <button onClick={() => setConfirmEliminar(p)}
+                  style={{ fontSize: '12px', padding: '5px 8px', background: 'transparent', border: '1px solid #374151', borderRadius: '6px', color: '#f87171', cursor: 'pointer' }}>
+                  🗑
                 </button>
               </div>
             </div>
@@ -367,10 +377,17 @@ export default function UsuariosPage() {
 
             <label style={labelStyle}>Rol</label>
             <select value={editRole} onChange={e => setEditRole(e.target.value)}
-              style={{ ...inputStyle, marginBottom: '20px' }}>
+              style={{ ...inputStyle, marginBottom: '14px' }}>
               {Object.entries(ROLES).map(([key, val]) => (
                 <option key={key} value={key}>{val.label}</option>
               ))}
+            </select>
+
+            <label style={labelStyle}>Restaurante</label>
+            <select value={editRestaurantId} onChange={e => setEditRestaurantId(e.target.value)}
+              style={{ ...inputStyle, marginBottom: '20px' }}>
+              <option value="">Sin restaurante</option>
+              {restaurants.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
 
             {errorEdit && (
@@ -402,6 +419,27 @@ export default function UsuariosPage() {
                 Listo
               </button>
             )}
+          </div>
+        </div>
+      )}
+      {/* MODAL CONFIRMAR ELIMINAR */}
+      {confirmEliminar && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: '#111827', border: '1px solid #7f1d1d', borderRadius: '16px', padding: '28px', width: '360px', maxWidth: '90vw' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#f9fafb', marginBottom: '8px' }}>¿Eliminar usuario?</h2>
+            <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '24px' }}>
+              Vas a eliminar a <strong style={{ color: '#f9fafb' }}>{confirmEliminar.nombre || confirmEliminar.username}</strong>. Esta acción no se puede deshacer.
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setConfirmEliminar(null)}
+                style={{ flex: 1, background: 'transparent', border: '1px solid #374151', borderRadius: '8px', padding: '10px', color: '#9ca3af', fontSize: '13px', cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={() => eliminarUsuario(confirmEliminar.id)} disabled={saving}
+                style={{ flex: 1, background: '#dc2626', border: 'none', borderRadius: '8px', padding: '10px', color: 'white', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>
+                {saving ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
           </div>
         </div>
       )}

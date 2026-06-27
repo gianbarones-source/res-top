@@ -3,14 +3,6 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRestaurant } from '@/context/RestaurantContext'
 
-const CHECKLIST_ITEMS = [
-  'Limpieza de equipos',
-  'Control de temperaturas',
-  'Stock de insumos verificado',
-  'Caja ordenada',
-  'Cierre de local completo',
-]
-
 const CATEGORIAS_GASTO = [
   'Limpieza', 'Gas', 'Electricidad', 'Agua', 'Insumos', 'Transporte', 'Mantenimiento', 'Otro'
 ]
@@ -25,7 +17,6 @@ const sec: React.CSSProperties = { background: '#1f2937', border: '1px solid #37
 const secT: React.CSSProperties = { fontSize: '13px', fontWeight: 600, color: '#f97316', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '16px' }
 
 type Gasto = { categoria: string; monto: string; descripcion?: string }
-type Desperdicio = { producto: string; cantidad: string; motivo: string; foto: File | null; fotoUrl?: string }
 type Consumo = { producto: string; cantidad: string; destino: string }
 type StockItem = { producto: string; cantidad: string; unidad: string; momento: string }
 
@@ -35,9 +26,8 @@ type FormState = {
   vtaPeyaEfv: string; vtaPeyaEfvTickets: string
   vtaTarjetas: string; vtaTarjetasTickets: string
   retiros: string; gastos: Gasto[]
-  cierreFisico: string; cierreSistema: string; notas: string
-  stockItems: StockItem[]; desperdicios: Desperdicio[]; consumos: Consumo[]
-  checklist: Record<string, boolean>
+  cierreFisico: string; cierreSistema: string
+  stockItems: StockItem[]; consumos: Consumo[]
 }
 
 const defaultForm = (): FormState => ({
@@ -62,9 +52,7 @@ const defaultForm = (): FormState => ({
     { producto: 'Cookies', cantidad: '', unidad: 'un', momento: 'cierre' },
     { producto: 'Bebidas', cantidad: '', unidad: 'un', momento: 'cierre' },
   ],
-  desperdicios: [{ producto: '', cantidad: '', motivo: '', foto: null }],
   consumos: [{ producto: '', cantidad: '', destino: '' }],
-  checklist: Object.fromEntries(CHECKLIST_ITEMS.map(i => [i, false]))
 })
 
 // ─── Formulario como componente separado ─────────────────────────────────────
@@ -81,13 +69,6 @@ function CajaFormulario({ restaurantId, userId, role, onSaved }: {
     (parseFloat(form.vtaTotal) || 0) - (parseFloat(form.vtaTarjetas) || 0)
   )
   const totalGastos = form.gastos.reduce((a, g) => a + (parseFloat(g.monto) || 0), 0) + (parseFloat(form.retiros) || 0)
-
-  const uploadFoto = async (file: File, regId: string, i: number) => {
-    const ext = file.name.split('.').pop()
-    const { error } = await supabase.storage.from('caja-fotos').upload(`${regId}/d-${i}.${ext}`, file, { upsert: true })
-    if (error) return null
-    return supabase.storage.from('caja-fotos').getPublicUrl(`${regId}/d-${i}.${ext}`).data.publicUrl
-  }
 
   const guardar = async () => {
     setSaving(true); setMsg('')
@@ -116,18 +97,8 @@ function CajaFormulario({ restaurantId, userId, role, onSaved }: {
     const gastosData = form.gastos.filter(g => g.categoria && g.monto).map(g => ({ registro_id: rid, categoria: g.categoria === 'Otro' && g.descripcion ? `Otro: ${g.descripcion}` : g.categoria, monto: parseFloat(g.monto) || 0 }))
     if (gastosData.length) await supabase.from('caja_gastos').insert(gastosData)
 
-    for (let i = 0; i < form.desperdicios.length; i++) {
-      const d = form.desperdicios[i]
-      if (!d.producto) continue
-      const fotoUrl = d.foto ? await uploadFoto(d.foto, rid, i) : null
-      await supabase.from('caja_desperdicios').insert({ registro_id: rid, producto: d.producto, cantidad: parseFloat(d.cantidad) || 0, motivo: d.motivo || null, foto_url: fotoUrl })
-    }
-
     const consumoData = form.consumos.filter(c => c.producto).map(c => ({ registro_id: rid, producto: c.producto, cantidad: parseFloat(c.cantidad) || 0, destino: c.destino || null }))
     if (consumoData.length) await supabase.from('caja_consumo').insert(consumoData)
-
-    const checkData = Object.entries(form.checklist).map(([item, completado]) => ({ registro_id: rid, item, completado }))
-    if (checkData.length) await supabase.from('caja_checklists').insert(checkData)
 
     setSaving(false)
     setMsg('✓ Caja guardada correctamente')
@@ -305,38 +276,6 @@ function CajaFormulario({ restaurantId, userId, role, onSaved }: {
         ))}
       </div>
 
-      {/* Desperdicios */}
-      <div style={sec}>
-        <div style={secT}>Desperdicios / mermas</div>
-        {form.desperdicios.map((d, i) => (
-          <div key={i} style={{ background: '#111827', borderRadius: '10px', padding: '14px', marginBottom: '10px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px', marginBottom: '10px' }}>
-              <div>
-                <label style={lbl}>Producto</label>
-                <input value={d.producto} onChange={e => set('desperdicios', form.desperdicios.map((x, j) => j === i ? { ...x, producto: e.target.value } : x))} placeholder="Ej: Pan" style={inp} />
-              </div>
-              <div>
-                <label style={lbl}>Cantidad</label>
-                <input type="number" value={d.cantidad} onChange={e => set('desperdicios', form.desperdicios.map((x, j) => j === i ? { ...x, cantidad: e.target.value } : x))} placeholder="0" style={inp} />
-              </div>
-            </div>
-            <div style={{ marginBottom: '10px' }}>
-              <label style={lbl}>Motivo</label>
-              <input value={d.motivo} onChange={e => set('desperdicios', form.desperdicios.map((x, j) => j === i ? { ...x, motivo: e.target.value } : x))} placeholder="Vencimiento, caída..." style={inp} />
-            </div>
-            <div>
-              <label style={lbl}>Foto (opcional)</label>
-              <input type="file" accept="image/*" capture="environment" onChange={e => {
-                const file = e.target.files?.[0] || null
-                set('desperdicios', form.desperdicios.map((x, j) => j === i ? { ...x, foto: file, fotoUrl: file ? URL.createObjectURL(file) : undefined } : x))
-              }} style={{ ...inp, padding: '8px' }} />
-              {d.fotoUrl && <img src={d.fotoUrl} alt="preview" style={{ marginTop: '8px', width: '100%', maxHeight: '160px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #374151' }} />}
-            </div>
-          </div>
-        ))}
-        <button onClick={() => set('desperdicios', [...form.desperdicios, { producto: '', cantidad: '', motivo: '', foto: null }])} style={{ background: 'transparent', border: '1px dashed #374151', borderRadius: '8px', padding: '8px', width: '100%', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>+ Agregar desperdicio</button>
-      </div>
-
       {/* Consumo */}
       <div style={sec}>
         <div style={secT}>Consumo interno</div>
@@ -348,23 +287,6 @@ function CajaFormulario({ restaurantId, userId, role, onSaved }: {
           </div>
         ))}
         <button onClick={() => set('consumos', [...form.consumos, { producto: '', cantidad: '', destino: '' }])} style={{ background: 'transparent', border: '1px dashed #374151', borderRadius: '8px', padding: '8px', width: '100%', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>+ Agregar consumo</button>
-      </div>
-
-      {/* Checklist */}
-      <div style={sec}>
-        <div style={secT}>Checklist de cierre</div>
-        {CHECKLIST_ITEMS.map(item => (
-          <label key={item} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', cursor: 'pointer' }}>
-            <input type="checkbox" checked={form.checklist[item]} onChange={e => set('checklist', { ...form.checklist, [item]: e.target.checked })} style={{ width: '18px', height: '18px', accentColor: '#f97316' }} />
-            <span style={{ fontSize: '14px', color: form.checklist[item] ? '#f9fafb' : '#9ca3af' }}>{item}</span>
-          </label>
-        ))}
-      </div>
-
-      {/* Notas */}
-      <div style={sec}>
-        <div style={secT}>Notas del turno</div>
-        <textarea value={form.notas} onChange={e => set('notas', e.target.value)} placeholder="Observaciones..." rows={3} style={{ ...inp, resize: 'vertical' }} />
       </div>
 
       <button onClick={guardar} disabled={saving} style={{ width: '100%', background: '#f97316', border: 'none', borderRadius: '10px', padding: '14px', fontSize: '15px', fontWeight: 600, color: 'white', cursor: 'pointer', marginBottom: '32px' }}>
@@ -395,14 +317,12 @@ function CajaHistorial({ registros, onDeleted }: { registros: any[], onDeleted: 
 
   const loadDetalle = async (reg: any) => {
     setLoadingDet(true); setSelected(reg)
-    const [{ data: stock }, { data: desp }, { data: cons }, { data: check }, { data: gast }] = await Promise.all([
+    const [{ data: stock }, { data: cons }, { data: gast }] = await Promise.all([
       supabase.from('caja_stock').select('*').eq('registro_id', reg.id),
-      supabase.from('caja_desperdicios').select('*').eq('registro_id', reg.id),
       supabase.from('caja_consumo').select('*').eq('registro_id', reg.id),
-      supabase.from('caja_checklists').select('*').eq('registro_id', reg.id),
       supabase.from('caja_gastos').select('*').eq('registro_id', reg.id),
     ])
-    setDetalle({ stock, desperdicios: desp, consumos: cons, checklists: check, gastos: gast })
+    setDetalle({ stock, consumos: cons, gastos: gast })
     setLoadingDet(false)
   }
 
@@ -488,7 +408,6 @@ function CajaHistorial({ registros, onDeleted }: { registros: any[], onDeleted: 
               </div>
 
               {detalle.stock?.length > 0 && <div style={{ background: '#1f2937', borderRadius: '10px', padding: '16px', marginBottom: '14px' }}><div style={secT}>Stock</div>{detalle.stock.map((s: any) => <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}><span style={{ fontSize: '13px', color: '#9ca3af' }}>{s.producto} <span style={{ color: '#4b5563', fontSize: '11px' }}>({s.momento || 'cierre'})</span></span><span style={{ fontSize: '13px', color: '#f9fafb' }}>{s.cantidad} {s.unidad}</span></div>)}</div>}
-              {detalle.desperdicios?.length > 0 && <div style={{ background: '#1f2937', borderRadius: '10px', padding: '16px', marginBottom: '14px' }}><div style={secT}>Desperdicios</div>{detalle.desperdicios.map((d: any) => <div key={d.id} style={{ marginBottom: '12px' }}><div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: '13px', color: '#f9fafb' }}>{d.producto}</span><span style={{ fontSize: '13px', color: '#f87171' }}>{d.cantidad}</span></div>{d.motivo && <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>{d.motivo}</div>}{d.foto_url && <img src={d.foto_url} alt="foto" style={{ marginTop: '6px', width: '100%', maxHeight: '160px', objectFit: 'cover', borderRadius: '6px' }} />}</div>)}</div>}
               {detalle.consumos?.length > 0 && <div style={{ background: '#1f2937', borderRadius: '10px', padding: '16px', marginBottom: '14px' }}><div style={secT}>Consumo interno</div>{detalle.consumos.map((c: any) => <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}><span style={{ fontSize: '13px', color: '#9ca3af' }}>{c.producto}{c.destino ? ` (${c.destino})` : ''}</span><span style={{ fontSize: '13px', color: '#f9fafb' }}>{c.cantidad}</span></div>)}</div>}
               {detalle.checklists?.length > 0 && <div style={{ background: '#1f2937', borderRadius: '10px', padding: '16px', marginBottom: '14px' }}><div style={secT}>Checklist</div>{detalle.checklists.map((c: any) => <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}><span style={{ fontSize: '16px' }}>{c.completado ? '✅' : '⬜'}</span><span style={{ fontSize: '13px', color: c.completado ? '#f9fafb' : '#6b7280' }}>{c.item}</span></div>)}</div>}
               {selected.notas && <div style={{ background: '#1f2937', borderRadius: '10px', padding: '16px', marginBottom: '14px' }}><div style={secT}>Notas</div><p style={{ fontSize: '13px', color: '#9ca3af', lineHeight: 1.6 }}>{selected.notas}</p></div>}

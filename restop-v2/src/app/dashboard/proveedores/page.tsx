@@ -60,10 +60,6 @@ export default function ProveedoresPage() {
   }
 
   useEffect(() => { load() }, [restaurantId])
-    setLoading(false)
-  }
-
-  useEffect(() => { load() }, [])
 
   const generarMensaje = (prov: any) => {
     const hoy = new Date().getDay() || 7

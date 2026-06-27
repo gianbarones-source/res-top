@@ -118,6 +118,8 @@ export default function StockPage() {
   const [mermaItem, setMermaItem] = useState<any | null>(null)
   const [mermaQty, setMermaQty] = useState('')
   const [mermaMotivo, setMermaMotivo] = useState('')
+  const [mermaFoto, setMermaFoto] = useState<File | null>(null)
+  const [mermaFotoUrl, setMermaFotoUrl] = useState<string | null>(null)
 
   const [showAgregar, setShowAgregar] = useState(false)
   const [nuevoForm, setNuevoForm] = useState<ProductoForm>(defaultForm())
@@ -193,11 +195,18 @@ export default function StockPage() {
   const saveMerma = async () => {
     if (!mermaItem || !mermaQty) return
     setSaving(true)
+    let fotoUrl = null
+    if (mermaFoto) {
+      const ext = mermaFoto.name.split('.').pop()
+      const path = `mermas/${mermaItem.id}-${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage.from('caja-fotos').upload(path, mermaFoto, { upsert: true })
+      if (!upErr) fotoUrl = supabase.storage.from('caja-fotos').getPublicUrl(path).data.publicUrl
+    }
     await Promise.all([
-      supabase.from('mermas').insert({ restaurant_id: restaurantId, stock_id: mermaItem.id, producto: mermaItem.producto, cantidad: parseFloat(mermaQty), unidad: mermaItem.unidad, motivo: mermaMotivo || null }),
+      supabase.from('mermas').insert({ restaurant_id: restaurantId, stock_id: mermaItem.id, producto: mermaItem.producto, cantidad: parseFloat(mermaQty), unidad: mermaItem.unidad, motivo: mermaMotivo || null, foto_url: fotoUrl }),
       supabase.from('stock').update({ cantidad_actual: Math.max(0, mermaItem.cantidad_actual - parseFloat(mermaQty)) }).eq('id', mermaItem.id)
     ])
-    setMermaItem(null); setMermaQty(''); setMermaMotivo('')
+    setMermaItem(null); setMermaQty(''); setMermaMotivo(''); setMermaFoto(null); setMermaFotoUrl(null)
     setSaving(false); load()
   }
 
@@ -325,7 +334,16 @@ export default function StockPage() {
             <label style={lbl}>Cantidad ({mermaItem.unidad})</label>
             <input type="number" value={mermaQty} onChange={e => setMermaQty(e.target.value)} placeholder="0" style={{ ...inp, marginBottom: '12px' }} />
             <label style={lbl}>Motivo (opcional)</label>
-            <input value={mermaMotivo} onChange={e => setMermaMotivo(e.target.value)} placeholder="Vencimiento, caída, error..." style={{ ...inp, marginBottom: '20px' }} />
+            <input value={mermaMotivo} onChange={e => setMermaMotivo(e.target.value)} placeholder="Vencimiento, caída, error..." style={{ ...inp, marginBottom: '12px' }} />
+            <label style={lbl}>Foto (opcional)</label>
+            <input type="file" accept="image/*" capture="environment"
+              onChange={e => {
+                const file = e.target.files?.[0] || null
+                setMermaFoto(file)
+                setMermaFotoUrl(file ? URL.createObjectURL(file) : null)
+              }}
+              style={{ ...inp, padding: '8px', marginBottom: '8px' }} />
+            {mermaFotoUrl && <img src={mermaFotoUrl} alt="preview" style={{ width: '100%', maxHeight: '140px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #374151', marginBottom: '12px' }} />}
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setMermaItem(null)} style={{ flex: 1, background: 'transparent', border: '1px solid #374151', borderRadius: '8px', padding: '10px', color: '#9ca3af', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
               <button onClick={saveMerma} disabled={saving} style={{ flex: 1, background: '#f97316', border: 'none', borderRadius: '8px', padding: '10px', color: 'white', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>{saving ? 'Guardando...' : 'Registrar pérdida'}</button>
