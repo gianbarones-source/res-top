@@ -1,4 +1,5 @@
 'use client'
+import { useRestaurant } from '@/context/RestaurantContext'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
@@ -21,32 +22,36 @@ const labelStyle: React.CSSProperties = {
 }
 
 export default function ProveedoresPage() {
+  const { selectedId: restaurantId, role } = useRestaurant()
   const [proveedores, setProveedores] = useState<any[]>([])
   const [stock, setStock] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [mensaje, setMensaje] = useState<{ texto: string; proveedor: string } | null>(null)
   const [copied, setCopied] = useState(false)
   const [restaurante, setRestaurante] = useState<any>(null)
-  const [restaurantId, setRestaurantId] = useState('')
-  const [role, setRole] = useState('')
   const [showNuevo, setShowNuevo] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [confirmEliminar, setConfirmEliminar] = useState<any>(null)
   const [errorNuevo, setErrorNuevo] = useState('')
   const [nuevo, setNuevo] = useState({
     nombre: '', rubro: '', telefono: '', tipo_pedido: 'A',
     dias_entrega: [] as number[], template_mensaje: ''
   })
 
+  const eliminarProveedor = async (id: string) => {
+    setSaving(true)
+    await supabase.from('proveedores').delete().eq('id', id)
+    setSaving(false)
+    setConfirmEliminar(null)
+    load()
+  }
+
   const load = async () => {
-    const { data: profile } = await supabase.from('profiles').select('restaurant_id, role').single()
-    if (!profile) return
-    setRole(profile.role)
-    setRestaurantId(profile.restaurant_id)
-    const rid = profile.restaurant_id
+    if (!restaurantId) return
     const [{ data: provs }, { data: stk }, { data: rest }] = await Promise.all([
-      supabase.from('proveedores').select('*').eq('restaurant_id', rid),
-      supabase.from('stock').select('*').eq('restaurant_id', rid),
-      supabase.from('restaurants').select('*').eq('id', rid).single(),
+      supabase.from('proveedores').select('*').eq('restaurant_id', restaurantId),
+      supabase.from('stock').select('*').eq('restaurant_id', restaurantId),
+      supabase.from('restaurants').select('*').eq('id', restaurantId).single(),
     ])
     setProveedores(provs || [])
     setStock(stk || [])
@@ -54,7 +59,7 @@ export default function ProveedoresPage() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [restaurantId])
 
   const generarMensaje = (prov: any) => {
     const hoy = new Date().getDay() || 7
@@ -177,6 +182,14 @@ export default function ProveedoresPage() {
               }}>
                 Generar pedido →
               </button>
+              {role === 'admin' && (
+                <button onClick={() => setConfirmEliminar(prov)} style={{
+                  width: '100%', marginTop: '8px', background: 'transparent', border: '1px solid #374151',
+                  borderRadius: '8px', padding: '8px', fontSize: '12px', color: '#f87171', cursor: 'pointer'
+                }}>
+                  🗑 Eliminar proveedor
+                </button>
+              )}
             </div>
           )
         })}
@@ -250,6 +263,26 @@ export default function ProveedoresPage() {
               <button onClick={saveNuevo} disabled={saving}
                 style={{ flex: 1, background: '#f97316', border: 'none', borderRadius: '8px', padding: '10px', color: 'white', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>
                 {saving ? 'Guardando...' : 'Agregar proveedor'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONFIRMAR ELIMINAR */}
+      {confirmEliminar && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: '#111827', border: '1px solid #7f1d1d', borderRadius: '16px', padding: '28px', width: '360px', maxWidth: '90vw' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#f9fafb', marginBottom: '8px' }}>¿Eliminar proveedor?</h2>
+            <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '24px' }}>
+              Vas a eliminar <strong style={{ color: '#f9fafb' }}>{confirmEliminar.nombre}</strong>. Los productos asociados quedarán sin proveedor.
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setConfirmEliminar(null)} style={{ flex: 1, background: 'transparent', border: '1px solid #374151', borderRadius: '8px', padding: '10px', color: '#9ca3af', fontSize: '13px', cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={() => eliminarProveedor(confirmEliminar.id)} disabled={saving} style={{ flex: 1, background: '#dc2626', border: 'none', borderRadius: '8px', padding: '10px', color: 'white', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>
+                {saving ? 'Eliminando...' : 'Eliminar'}
               </button>
             </div>
           </div>
