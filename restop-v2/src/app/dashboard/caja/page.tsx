@@ -673,11 +673,118 @@ function CajaHistorial({ registros, onDeleted, onRefresh }: { registros: any[]; 
   )
 }
 
+// ─── Resumen mensual ──────────────────────────────────────────────────────────
+function CajaMensual({ restaurantId }: { restaurantId: string }) {
+  const [mes, setMes] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })
+  const [registros, setRegistros] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const cargar = async () => {
+    setLoading(true)
+    const desde = `${mes}-01`
+    const hasta = new Date(parseInt(mes.split('-')[0]), parseInt(mes.split('-')[1]), 0).toISOString().split('T')[0]
+    const { data } = await supabase.from('caja_registros').select('*')
+      .eq('restaurant_id', restaurantId)
+      .gte('fecha', desde).lte('fecha', hasta)
+      .order('fecha').order('turno')
+    setRegistros(data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => { cargar() }, [mes, restaurantId])
+
+  // Agrupar por fecha
+  const porFecha: Record<string, any[]> = {}
+  for (const r of registros) {
+    if (!porFecha[r.fecha]) porFecha[r.fecha] = []
+    porFecha[r.fecha].push(r)
+  }
+
+  const totalVentas = registros.reduce((a, r) => a + (r.vta_total || 0), 0)
+  const totalGastos = registros.reduce((a, r) => a + (r.gastos || 0) + (r.retiros || 0), 0)
+  const totalEfectivo = registros.reduce((a, r) => a + (r.cierre_fisico || 0), 0)
+  const totalTickets = registros.reduce((a, r) => a + (r.vta_total_tickets || 0), 0)
+  const diasConDatos = Object.keys(porFecha).length
+
+  const inp: React.CSSProperties = { background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', padding: '8px 12px', color: '#f9fafb', fontSize: '14px', outline: 'none' }
+
+  return (
+    <div>
+      {/* Selector de mes */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+        <label style={{ fontSize: '13px', color: '#9ca3af' }}>Mes:</label>
+        <input type="month" value={mes} onChange={e => setMes(e.target.value)} style={inp} />
+      </div>
+
+      {loading ? <div style={{ color: '#6b7280', textAlign: 'center', padding: '40px' }}>Cargando...</div> : (
+        <>
+          {/* Resumen del mes */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px', marginBottom: '24px' }}>
+            {[
+              { label: 'Total ventas', value: `$${totalVentas.toLocaleString('es-AR')}`, color: '#4ade80' },
+              { label: 'Total gastos', value: `$${totalGastos.toLocaleString('es-AR')}`, color: '#f87171' },
+              { label: 'Efectivo total', value: `$${totalEfectivo.toLocaleString('es-AR')}`, color: '#60a5fa' },
+              { label: 'Total tickets', value: totalTickets, color: '#f97316' },
+              { label: 'Días con datos', value: diasConDatos, color: '#a78bfa' },
+              { label: 'Ticket promedio', value: totalTickets > 0 ? `$${Math.round(totalVentas / totalTickets).toLocaleString('es-AR')}` : '—', color: '#f9fafb' },
+            ].map(s => (
+              <div key={s.label} style={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '12px', padding: '16px' }}>
+                <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{s.label}</div>
+                <div style={{ fontSize: '20px', fontWeight: 700, color: s.color }}>{s.value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Detalle por día */}
+          {Object.keys(porFecha).length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280', background: '#1f2937', borderRadius: '12px', border: '1px solid #374151' }}>
+              No hay registros para este mes.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {Object.entries(porFecha).map(([fecha, turnos]) => {
+                const vtaDia = turnos.reduce((a, r) => a + (r.vta_total || 0), 0)
+                const gastosDia = turnos.reduce((a, r) => a + (r.gastos || 0) + (r.retiros || 0), 0)
+                const ticketsDia = turnos.reduce((a, r) => a + (r.vta_total_tickets || 0), 0)
+                return (
+                  <div key={fecha} style={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '10px', padding: '14px 18px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#f9fafb' }}>
+                        {new Date(fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'short' })}
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        {turnos.map(t => (
+                          <span key={t.id} style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '20px', background: '#111827', color: '#9ca3af', border: '1px solid #374151' }}>
+                            {t.turno}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px' }}>
+                      <div><div style={{ fontSize: '11px', color: '#6b7280' }}>Ventas</div><div style={{ fontSize: '14px', color: '#4ade80', fontWeight: 600 }}>${vtaDia.toLocaleString('es-AR')}</div></div>
+                      <div><div style={{ fontSize: '11px', color: '#6b7280' }}>Gastos</div><div style={{ fontSize: '14px', color: '#f87171' }}>${gastosDia.toLocaleString('es-AR')}</div></div>
+                      <div><div style={{ fontSize: '11px', color: '#6b7280' }}>Tickets</div><div style={{ fontSize: '14px', color: '#f9fafb' }}>{ticketsDia}</div></div>
+                      <div><div style={{ fontSize: '11px', color: '#6b7280' }}>T. prom.</div><div style={{ fontSize: '14px', color: '#f9fafb' }}>{ticketsDia > 0 ? `$${Math.round(vtaDia / ticketsDia).toLocaleString('es-AR')}` : '—'}</div></div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function CajaPage() {
   const { selectedId: restaurantId, role, userId } = useRestaurant()
   const [loading, setLoading] = useState(true)
-  const [vistaAdmin, setVistaAdmin] = useState<'cargar' | 'historial'>('historial')
+  const [vistaAdmin, setVistaAdmin] = useState<'cargar' | 'historial' | 'mensual'>('historial')
   const [registros, setRegistros] = useState<any[]>([])
 
   const loadRegistros = async (rid: string) => {
@@ -694,18 +801,24 @@ export default function CajaPage() {
 
   if (loading) return <div style={{ color: '#6b7280', padding: '40px', textAlign: 'center' }}>Cargando...</div>
 
+  const VISTAS = [
+    { key: 'historial', label: '📊 Historial' },
+    { key: 'mensual', label: '📅 Mensual' },
+    { key: 'cargar', label: '➕ Cargar turno' },
+  ] as const
+
   return (
     <div>
-      <div style={{ marginBottom: '28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h1 style={{ fontSize: '22px', fontWeight: 600, color: '#f9fafb' }}>Caja</h1>
           <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>{role === 'admin' || role === 'franquiciado' ? 'Historial y gestión de turnos' : 'Carga del turno diario'}</p>
         </div>
         {(role === 'admin' || role === 'franquiciado') && (
-          <div style={{ display: 'flex', gap: '8px' }}>
-            {(['historial', 'cargar'] as const).map(v => (
-              <button key={v} onClick={() => setVistaAdmin(v)} style={{ padding: '8px 16px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer', background: vistaAdmin === v ? '#f97316' : 'transparent', border: `1px solid ${vistaAdmin === v ? '#f97316' : '#374151'}`, color: vistaAdmin === v ? 'white' : '#9ca3af' }}>
-                {v === 'historial' ? '📊 Historial' : '➕ Cargar turno'}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {VISTAS.map(v => (
+              <button key={v.key} onClick={() => setVistaAdmin(v.key)} style={{ padding: '8px 14px', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', background: vistaAdmin === v.key ? '#f97316' : 'transparent', border: `1px solid ${vistaAdmin === v.key ? '#f97316' : '#374151'}`, color: vistaAdmin === v.key ? 'white' : '#9ca3af' }}>
+                {v.label}
               </button>
             ))}
           </div>
@@ -715,7 +828,9 @@ export default function CajaPage() {
       {(role === 'admin' || role === 'franquiciado')
         ? vistaAdmin === 'historial'
           ? <CajaHistorial registros={registros} onDeleted={() => loadRegistros(restaurantId)} onRefresh={() => loadRegistros(restaurantId)} />
-          : <CajaFormulario restaurantId={restaurantId} userId={userId} onSaved={() => { loadRegistros(restaurantId); setVistaAdmin('historial') }} />
+          : vistaAdmin === 'mensual'
+            ? <CajaMensual restaurantId={restaurantId} />
+            : <CajaFormulario restaurantId={restaurantId} userId={userId} onSaved={() => { loadRegistros(restaurantId); setVistaAdmin('historial') }} />
         : <CajaFormulario restaurantId={restaurantId} userId={userId} onSaved={() => {}} />
       }
     </div>
