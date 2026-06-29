@@ -63,10 +63,20 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
 
         if (rests.length > 0) {
           setRestaurants(rests)
-          // Restaurar selección guardada o usar el primero
           const saved = localStorage.getItem('restop_selected_restaurant')
           const valid = rests.find(r => r.id === saved)
           setSelectedId(valid ? valid.id : rests[0].id)
+        } else if (profile.restaurant_id) {
+          // Fallback: usar restaurant_id del profile
+          const { data: rest } = await supabase
+            .from('restaurants')
+            .select('id, name')
+            .eq('id', profile.restaurant_id)
+            .single()
+          if (rest) {
+            setRestaurants([rest])
+            setSelectedId(rest.id)
+          }
         }
       }
     }
