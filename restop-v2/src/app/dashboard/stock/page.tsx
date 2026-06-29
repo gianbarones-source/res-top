@@ -38,11 +38,11 @@ function ModalProducto({ titulo, form, setForm, onSave, onCancel, error, saving,
   onSave: () => void; onCancel: () => void; error: string; saving: boolean; proveedores: any[]
 }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-      <div style={{ background: '#111827', border: '1px solid #374151', borderRadius: '16px', padding: '28px', width: '420px', maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 50 }}>
+      <div style={{ background: '#111827', border: '1px solid #374151', borderRadius: '16px 16px 0 0', padding: '24px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
         <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#f9fafb', marginBottom: '20px' }}>{titulo}</h2>
 
-        <label style={lbl}>Nombre del producto *</label>
+        <label style={lbl}>Nombre *</label>
         <input value={form.producto} onChange={e => setForm({ ...form, producto: e.target.value })}
           placeholder="Ej: Pollo" style={{ ...inp, marginBottom: '14px' }} />
 
@@ -62,38 +62,60 @@ function ModalProducto({ titulo, form, setForm, onSave, onCancel, error, saving,
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-          <div>
-            <label style={lbl}>Stock actual</label>
-            <input type="number" value={form.cantidad_actual} onChange={e => setForm({ ...form, cantidad_actual: e.target.value })} placeholder="0" style={inp} />
-          </div>
-          <div>
-            <label style={lbl}>Objetivo común</label>
-            <input type="number" value={form.cantidad_objetivo} onChange={e => setForm({ ...form, cantidad_objetivo: e.target.value })} placeholder="0" style={inp} />
-          </div>
-          <div>
-            <label style={lbl}>Obj. finde/jueves</label>
-            <input type="number" value={form.cantidad_objetivo_finde} onChange={e => setForm({ ...form, cantidad_objetivo_finde: e.target.value })} placeholder="0" style={inp} />
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+          <div><label style={lbl}>Actual</label><input type="number" value={form.cantidad_actual} onChange={e => setForm({ ...form, cantidad_actual: e.target.value })} placeholder="0" style={inp} /></div>
+          <div><label style={lbl}>Obj. común</label><input type="number" value={form.cantidad_objetivo} onChange={e => setForm({ ...form, cantidad_objetivo: e.target.value })} placeholder="0" style={inp} /></div>
+          <div><label style={lbl}>Obj. finde</label><input type="number" value={form.cantidad_objetivo_finde} onChange={e => setForm({ ...form, cantidad_objetivo_finde: e.target.value })} placeholder="0" style={inp} /></div>
         </div>
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', cursor: 'pointer' }}>
-          <input type="checkbox" checked={form.es_objetivo_por_dia}
-            onChange={e => setForm({ ...form, es_objetivo_por_dia: e.target.checked })}
-            style={{ width: '16px', height: '16px', accentColor: '#f97316' }} />
-          <span style={{ fontSize: '13px', color: '#9ca3af' }}>Objetivo es por día</span>
-        </label>
-
-        {error && (
-          <div style={{ background: '#1c0a0a', border: '1px solid #7f1d1d', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#f87171', marginBottom: '16px' }}>
-            {error}
-          </div>
-        )}
+        {error && <div style={{ background: '#1c0a0a', border: '1px solid #7f1d1d', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#f87171', marginBottom: '16px' }}>{error}</div>}
 
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={onCancel} style={{ flex: 1, background: 'transparent', border: '1px solid #374151', borderRadius: '8px', padding: '10px', color: '#9ca3af', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
-          <button onClick={onSave} disabled={saving} style={{ flex: 1, background: '#f97316', border: 'none', borderRadius: '8px', padding: '10px', color: 'white', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>
+          <button onClick={onCancel} style={{ flex: 1, background: 'transparent', border: '1px solid #374151', borderRadius: '8px', padding: '12px', color: '#9ca3af', fontSize: '14px', cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={onSave} disabled={saving} style={{ flex: 1, background: '#f97316', border: 'none', borderRadius: '8px', padding: '12px', color: 'white', fontSize: '14px', cursor: 'pointer', fontWeight: 600 }}>
             {saving ? 'Guardando...' : 'Guardar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ModalMerma({ item, onClose, onSave, saving }: { item: any; onClose: () => void; onSave: (qty: string, motivo: string, foto: File | null) => void; saving: boolean }) {
+  const [qty, setQty] = useState('')
+  const [motivo, setMotivo] = useState('')
+  const [foto, setFoto] = useState<File | null>(null)
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null)
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 50 }}>
+      <div style={{ background: '#111827', border: '1px solid #374151', borderRadius: '16px 16px 0 0', padding: '24px', width: '100%', maxWidth: '500px' }}>
+        <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#f9fafb', marginBottom: '4px' }}>Registrar pérdida</h2>
+        <p style={{ fontSize: '13px', color: '#f97316', marginBottom: '20px' }}>{item.producto}</p>
+
+        <label style={lbl}>Cantidad ({item.unidad})</label>
+        <input type="number" value={qty} onChange={e => setQty(e.target.value)} placeholder="0"
+          style={{ ...inp, fontSize: '20px', padding: '14px', marginBottom: '14px' }} autoFocus />
+
+        <label style={lbl}>Motivo (opcional)</label>
+        <input value={motivo} onChange={e => setMotivo(e.target.value)}
+          placeholder="Vencimiento, caída..." style={{ ...inp, marginBottom: '14px' }} />
+
+        <label style={lbl}>Foto (opcional)</label>
+        <input type="file" accept="image/*" capture="environment"
+          onChange={e => {
+            const f = e.target.files?.[0] || null
+            setFoto(f)
+            setFotoUrl(f ? URL.createObjectURL(f) : null)
+          }}
+          style={{ ...inp, padding: '8px', marginBottom: fotoUrl ? '8px' : '20px' }} />
+        {fotoUrl && <img src={fotoUrl} alt="preview" style={{ width: '100%', maxHeight: '140px', objectFit: 'cover', borderRadius: '6px', marginBottom: '14px' }} />}
+
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={onClose} style={{ flex: 1, background: 'transparent', border: '1px solid #374151', borderRadius: '8px', padding: '14px', color: '#9ca3af', fontSize: '14px', cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={() => onSave(qty, motivo, foto)} disabled={saving || !qty}
+            style={{ flex: 2, background: '#f97316', border: 'none', borderRadius: '8px', padding: '14px', color: 'white', fontSize: '14px', cursor: 'pointer', fontWeight: 600 }}>
+            {saving ? 'Guardando...' : 'Registrar pérdida'}
           </button>
         </div>
       </div>
@@ -108,31 +130,23 @@ export default function StockPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [filtroProveedor, setFiltroProveedor] = useState<string>('todos')
+  const [busqueda, setBusqueda] = useState('')
 
   const [mermaItem, setMermaItem] = useState<any | null>(null)
-  const [mermaQty, setMermaQty] = useState('')
-  const [mermaMotivo, setMermaMotivo] = useState('')
-  const [mermaFoto, setMermaFoto] = useState<File | null>(null)
-  const [mermaFotoUrl, setMermaFotoUrl] = useState<string | null>(null)
-
   const [showAgregar, setShowAgregar] = useState(false)
   const [nuevoForm, setNuevoForm] = useState<ProductoForm>(defaultForm())
   const [errorAgregar, setErrorAgregar] = useState('')
-
   const [showEditar, setShowEditar] = useState(false)
   const [editando, setEditando] = useState<any>(null)
   const [editForm, setEditForm] = useState<ProductoForm>(defaultForm())
   const [errorEditar, setErrorEditar] = useState('')
-
   const [confirmEliminar, setConfirmEliminar] = useState<any>(null)
 
-  // Determinar objetivo activo según día
-  const hoy = new Date().getDay() // 0=dom, 4=jue, 5=vie, 6=sab
+  const hoy = new Date().getDay()
   const esFinde = [4, 5, 6, 0].includes(hoy)
 
   const getObjetivo = (item: any) => esFinde && item.cantidad_objetivo_finde
-    ? item.cantidad_objetivo_finde
-    : item.cantidad_objetivo
+    ? item.cantidad_objetivo_finde : item.cantidad_objetivo
 
   const getStatus = (item: any): 'ok' | 'danger' =>
     item.cantidad_actual < getObjetivo(item) ? 'danger' : 'ok'
@@ -165,21 +179,17 @@ export default function StockPage() {
   }
 
   const saveEditar = async () => {
-    setErrorEditar('')
     if (!editForm.producto.trim()) { setErrorEditar('El nombre es obligatorio.'); return }
     setSaving(true)
-    const { error } = await supabase.from('stock').update({
+    await supabase.from('stock').update({
       producto: editForm.producto.trim(), unidad: editForm.unidad,
       cantidad_actual: parseFloat(editForm.cantidad_actual) || 0,
       cantidad_objetivo: parseFloat(editForm.cantidad_objetivo) || 0,
       cantidad_objetivo_finde: parseFloat(editForm.cantidad_objetivo_finde) || 0,
       proveedor_id: editForm.proveedor_id || null,
-      es_objetivo_por_dia: editForm.es_objetivo_por_dia,
       ultima_actualizacion_manual: new Date().toISOString()
     }).eq('id', editando.id)
-    setSaving(false)
-    if (error) { setErrorEditar('Error: ' + error.message); return }
-    setShowEditar(false); load()
+    setSaving(false); setShowEditar(false); load()
   }
 
   const eliminar = async (id: string) => {
@@ -188,163 +198,177 @@ export default function StockPage() {
     setSaving(false); setConfirmEliminar(null); load()
   }
 
-  const saveMerma = async () => {
-    if (!mermaItem || !mermaQty) return
+  const saveMerma = async (qty: string, motivo: string, foto: File | null) => {
     setSaving(true)
     let fotoUrl = null
-    if (mermaFoto) {
-      const ext = mermaFoto.name.split('.').pop()
+    if (foto) {
+      const ext = foto.name.split('.').pop()
       const path = `mermas/${mermaItem.id}-${Date.now()}.${ext}`
-      const { error: upErr } = await supabase.storage.from('caja-fotos').upload(path, mermaFoto, { upsert: true })
+      const { error: upErr } = await supabase.storage.from('caja-fotos').upload(path, foto, { upsert: true })
       if (!upErr) fotoUrl = supabase.storage.from('caja-fotos').getPublicUrl(path).data.publicUrl
     }
     await Promise.all([
       supabase.from('mermas').insert({
         restaurant_id: restaurantId, stock_id: mermaItem.id,
-        producto: mermaItem.producto, cantidad: parseFloat(mermaQty),
-        unidad: mermaItem.unidad, motivo: mermaMotivo || null,
+        producto: mermaItem.producto, cantidad: parseFloat(qty),
+        unidad: mermaItem.unidad, motivo: motivo || null,
         foto_url: fotoUrl, fecha: new Date().toISOString().split('T')[0]
       }),
-      supabase.from('stock').update({ cantidad_actual: Math.max(0, mermaItem.cantidad_actual - parseFloat(mermaQty)) }).eq('id', mermaItem.id)
+      supabase.from('stock').update({ cantidad_actual: Math.max(0, mermaItem.cantidad_actual - parseFloat(qty)) }).eq('id', mermaItem.id)
     ])
-    setMermaItem(null); setMermaQty(''); setMermaMotivo(''); setMermaFoto(null); setMermaFotoUrl(null)
-    setSaving(false); load()
+    setSaving(false); setMermaItem(null); load()
   }
 
   const saveNuevo = async () => {
     setErrorAgregar('')
-    if (!nuevoForm.producto.trim()) { setErrorAgregar('El nombre del producto es obligatorio.'); return }
+    if (!nuevoForm.producto.trim()) { setErrorAgregar('El nombre es obligatorio.'); return }
     setSaving(true)
-    const { error } = await supabase.from('stock').insert({
+    await supabase.from('stock').insert({
       restaurant_id: restaurantId,
       producto: nuevoForm.producto.trim(), unidad: nuevoForm.unidad,
       cantidad_actual: parseFloat(nuevoForm.cantidad_actual) || 0,
       cantidad_objetivo: parseFloat(nuevoForm.cantidad_objetivo) || 0,
       cantidad_objetivo_finde: parseFloat(nuevoForm.cantidad_objetivo_finde) || 0,
       proveedor_id: nuevoForm.proveedor_id || null,
-      es_objetivo_por_dia: nuevoForm.es_objetivo_por_dia,
       ultima_actualizacion_manual: new Date().toISOString()
     })
-    setSaving(false)
-    if (error) { setErrorAgregar('Error: ' + error.message); return }
-    setShowAgregar(false); setNuevoForm(defaultForm()); load()
+    setSaving(false); setShowAgregar(false); setNuevoForm(defaultForm()); load()
   }
 
-  const itemsFiltrados = filtroProveedor === 'todos'
-    ? items
-    : filtroProveedor === 'sin'
-      ? items.filter(i => !i.proveedor_id)
-      : items.filter(i => i.proveedor_id === filtroProveedor)
+  const itemsFiltrados = items
+    .filter(i => filtroProveedor === 'todos' ? true : filtroProveedor === 'sin' ? !i.proveedor_id : i.proveedor_id === filtroProveedor)
+    .filter(i => busqueda === '' || i.producto.toLowerCase().includes(busqueda.toLowerCase()))
 
   if (loading) return <div style={{ color: '#6b7280', padding: '40px', textAlign: 'center' }}>Cargando...</div>
 
   return (
     <div>
-      <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      {/* Header */}
+      <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontSize: '22px', fontWeight: 600, color: '#f9fafb' }}>Stock</h1>
-          <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
-            {itemsFiltrados.length} productos · objetivo {esFinde ? 'fin de semana/jueves' : 'semanal'} activo
-          </p>
+          <h1 style={{ fontSize: '20px', fontWeight: 600, color: '#f9fafb' }}>Stock</h1>
+          <p style={{ fontSize: '12px', color: '#6b7280' }}>{itemsFiltrados.length} productos · obj. {esFinde ? 'finde' : 'semanal'}</p>
         </div>
         {role === 'admin' && (
-          <button onClick={() => setShowAgregar(true)} style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', cursor: 'pointer' }}>
-            + Agregar producto
+          <button onClick={() => setShowAgregar(true)} style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 14px', fontSize: '13px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            + Agregar
           </button>
         )}
       </div>
 
-      {/* Filtro por proveedor */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        <button onClick={() => setFiltroProveedor('todos')} style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', background: filtroProveedor === 'todos' ? '#1f2937' : 'transparent', border: `1px solid ${filtroProveedor === 'todos' ? '#374151' : 'transparent'}`, color: filtroProveedor === 'todos' ? '#f97316' : '#6b7280' }}>
-          Todos
-        </button>
-        {proveedores.map(p => (
-          <button key={p.id} onClick={() => setFiltroProveedor(p.id)} style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', background: filtroProveedor === p.id ? '#1f2937' : 'transparent', border: `1px solid ${filtroProveedor === p.id ? '#374151' : 'transparent'}`, color: filtroProveedor === p.id ? '#f97316' : '#6b7280' }}>
-            {p.nombre}
-          </button>
-        ))}
-        <button onClick={() => setFiltroProveedor('sin')} style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', background: filtroProveedor === 'sin' ? '#1f2937' : 'transparent', border: `1px solid ${filtroProveedor === 'sin' ? '#374151' : 'transparent'}`, color: filtroProveedor === 'sin' ? '#f97316' : '#6b7280' }}>
-          Sin proveedor
-        </button>
-      </div>
+      {/* Búsqueda */}
+      <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
+        placeholder="🔍 Buscar producto..."
+        style={{ ...inp, marginBottom: '12px', fontSize: '15px', padding: '12px 14px' }} />
 
-      <div style={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '12px', overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 100px 160px', padding: '10px 20px', background: '#111827', borderBottom: '1px solid #374151' }}>
-          {['Producto', 'Actual', 'Obj. común', 'Obj. finde', 'Estado', 'Acciones'].map(h => (
-            <div key={h} style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</div>
-          ))}
-        </div>
-
-        {itemsFiltrados.length === 0 && (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280', fontSize: '14px' }}>
-            No hay productos. {role === 'admin' && 'Agregá el primero con el botón arriba.'}
-          </div>
-        )}
-
-        {itemsFiltrados.map((item, i) => (
-          <div key={item.id} style={{
-            display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 100px 160px',
-            padding: '14px 20px', alignItems: 'center',
-            borderBottom: i < itemsFiltrados.length - 1 ? '1px solid #1f2937' : 'none',
-            background: getStatus(item) === 'danger' ? '#160a0a' : 'transparent',
+      {/* Filtro proveedor */}
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', overflowX: 'auto', paddingBottom: '4px' }}>
+        {[{ id: 'todos', label: 'Todos' }, ...proveedores.map(p => ({ id: p.id, label: p.nombre })), { id: 'sin', label: 'Sin proveedor' }].map(f => (
+          <button key={f.id} onClick={() => setFiltroProveedor(f.id)} style={{
+            fontSize: '12px', padding: '6px 12px', borderRadius: '20px', cursor: 'pointer', whiteSpace: 'nowrap',
+            background: filtroProveedor === f.id ? '#f97316' : '#1f2937',
+            border: `1px solid ${filtroProveedor === f.id ? '#f97316' : '#374151'}`,
+            color: filtroProveedor === f.id ? 'white' : '#9ca3af'
           }}>
-            <div>
-              <div style={{ fontSize: '14px', color: '#f9fafb' }}>{item.producto}</div>
-              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>{item.proveedores?.nombre || '—'}</div>
-            </div>
-            <div style={{ fontSize: '14px', color: '#f9fafb' }}>{item.cantidad_actual} {item.unidad}</div>
-            <div style={{ fontSize: '14px', color: '#6b7280' }}>{item.cantidad_objetivo} {item.unidad}</div>
-            <div style={{ fontSize: '14px', color: '#6b7280' }}>{item.cantidad_objetivo_finde || '—'} {item.cantidad_objetivo_finde ? item.unidad : ''}</div>
-            <div><Pill status={getStatus(item)} /></div>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <button onClick={() => setMermaItem(item)} style={{ fontSize: '12px', padding: '4px 10px', background: 'transparent', border: '1px solid #374151', borderRadius: '6px', color: '#9ca3af', cursor: 'pointer' }}>Merma</button>
-              {role === 'admin' && (
-                <>
-                  <button onClick={() => abrirEditar(item)} style={{ fontSize: '12px', padding: '4px 10px', background: 'transparent', border: '1px solid #374151', borderRadius: '6px', color: '#f97316', cursor: 'pointer' }}>Editar</button>
-                  <button onClick={() => setConfirmEliminar(item)} style={{ fontSize: '12px', padding: '4px 8px', background: 'transparent', border: '1px solid #374151', borderRadius: '6px', color: '#f87171', cursor: 'pointer' }}>🗑</button>
-                </>
-              )}
-            </div>
-          </div>
+            {f.label}
+          </button>
         ))}
       </div>
 
-      {showEditar && <ModalProducto titulo={`Editar: ${editando?.producto}`} form={editForm} setForm={setEditForm} onSave={saveEditar} onCancel={() => { setShowEditar(false); setErrorEditar('') }} error={errorEditar} saving={saving} proveedores={proveedores} />}
-      {showAgregar && <ModalProducto titulo="Agregar producto" form={nuevoForm} setForm={setNuevoForm} onSave={saveNuevo} onCancel={() => { setShowAgregar(false); setErrorAgregar('') }} error={errorAgregar} saving={saving} proveedores={proveedores} />}
+      {/* Lista de productos — cards para móvil */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {itemsFiltrados.length === 0 && (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280', fontSize: '14px', background: '#1f2937', borderRadius: '12px' }}>
+            No hay productos.
+          </div>
+        )}
+
+        {itemsFiltrados.map(item => {
+          const status = getStatus(item)
+          const objetivo = getObjetivo(item)
+          const pct = objetivo > 0 ? Math.min(100, (item.cantidad_actual / objetivo) * 100) : 100
+
+          return (
+            <div key={item.id} style={{
+              background: status === 'danger' ? '#160a0a' : '#1f2937',
+              border: `1px solid ${status === 'danger' ? '#7f1d1d' : '#374151'}`,
+              borderRadius: '12px', padding: '16px'
+            }}>
+              {/* Nombre y proveedor */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                <div>
+                  <div style={{ fontSize: '15px', fontWeight: 600, color: '#f9fafb' }}>{item.producto}</div>
+                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>{item.proveedores?.nombre || '—'}</div>
+                </div>
+                <Pill status={status} />
+              </div>
+
+              {/* Cantidad y objetivo */}
+              <div style={{ display: 'flex', gap: '16px', marginBottom: '10px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#6b7280' }}>Actual</div>
+                  <div style={{ fontSize: '18px', fontWeight: 700, color: status === 'danger' ? '#f87171' : '#4ade80' }}>
+                    {item.cantidad_actual} <span style={{ fontSize: '12px', fontWeight: 400 }}>{item.unidad}</span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#6b7280' }}>Objetivo</div>
+                  <div style={{ fontSize: '18px', fontWeight: 700, color: '#9ca3af' }}>
+                    {objetivo} <span style={{ fontSize: '12px', fontWeight: 400 }}>{item.unidad}</span>
+                  </div>
+                </div>
+                {item.cantidad_objetivo_finde > 0 && (
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#6b7280' }}>Obj. finde</div>
+                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#9ca3af' }}>
+                      {item.cantidad_objetivo_finde} <span style={{ fontSize: '12px', fontWeight: 400 }}>{item.unidad}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Barra de progreso */}
+              <div style={{ height: '6px', background: '#111827', borderRadius: '3px', marginBottom: '12px', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pct}%`, background: status === 'danger' ? '#dc2626' : '#22c55e', borderRadius: '3px', transition: 'width 0.3s' }} />
+              </div>
+
+              {/* Botones */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => setMermaItem(item)} style={{
+                  flex: 1, padding: '10px', background: '#111827', border: '1px solid #374151',
+                  borderRadius: '8px', color: '#f87171', fontSize: '13px', cursor: 'pointer', fontWeight: 500
+                }}>
+                  📉 Merma
+                </button>
+                {role === 'admin' && (
+                  <>
+                    <button onClick={() => abrirEditar(item)} style={{ padding: '10px 14px', background: 'transparent', border: '1px solid #374151', borderRadius: '8px', color: '#f97316', fontSize: '13px', cursor: 'pointer' }}>
+                      ✏️
+                    </button>
+                    <button onClick={() => setConfirmEliminar(item)} style={{ padding: '10px 14px', background: 'transparent', border: '1px solid #374151', borderRadius: '8px', color: '#f87171', fontSize: '13px', cursor: 'pointer' }}>
+                      🗑
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Modales */}
+      {showEditar && <ModalProducto titulo={`Editar: ${editando?.producto}`} form={editForm} setForm={setEditForm} onSave={saveEditar} onCancel={() => setShowEditar(false)} error={errorEditar} saving={saving} proveedores={proveedores} />}
+      {showAgregar && <ModalProducto titulo="Agregar producto" form={nuevoForm} setForm={setNuevoForm} onSave={saveNuevo} onCancel={() => setShowAgregar(false)} error={errorAgregar} saving={saving} proveedores={proveedores} />}
+      {mermaItem && <ModalMerma item={mermaItem} onClose={() => setMermaItem(null)} onSave={saveMerma} saving={saving} />}
 
       {confirmEliminar && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: '#111827', border: '1px solid #7f1d1d', borderRadius: '16px', padding: '28px', width: '360px', maxWidth: '90vw' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: '#111827', border: '1px solid #7f1d1d', borderRadius: '16px 16px 0 0', padding: '24px', width: '100%', maxWidth: '500px' }}>
             <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#f9fafb', marginBottom: '8px' }}>¿Eliminar producto?</h2>
-            <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '24px' }}>Vas a eliminar <strong style={{ color: '#f9fafb' }}>{confirmEliminar.producto}</strong>. Esta acción no se puede deshacer.</p>
+            <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '24px' }}>Vas a eliminar <strong style={{ color: '#f9fafb' }}>{confirmEliminar.producto}</strong>. No se puede deshacer.</p>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setConfirmEliminar(null)} style={{ flex: 1, background: 'transparent', border: '1px solid #374151', borderRadius: '8px', padding: '10px', color: '#9ca3af', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={() => eliminar(confirmEliminar.id)} disabled={saving} style={{ flex: 1, background: '#dc2626', border: 'none', borderRadius: '8px', padding: '10px', color: 'white', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>{saving ? 'Eliminando...' : 'Eliminar'}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {mermaItem && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: '#111827', border: '1px solid #374151', borderRadius: '16px', padding: '28px', width: '360px', maxWidth: '90vw' }}>
-            <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#f9fafb', marginBottom: '4px' }}>Registrar pérdida</h2>
-            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>{mermaItem.producto}</p>
-            <label style={lbl}>Cantidad ({mermaItem.unidad})</label>
-            <input type="number" value={mermaQty} onChange={e => setMermaQty(e.target.value)} placeholder="0" style={{ ...inp, marginBottom: '12px' }} />
-            <label style={lbl}>Motivo (opcional)</label>
-            <input value={mermaMotivo} onChange={e => setMermaMotivo(e.target.value)} placeholder="Vencimiento, caída, error..." style={{ ...inp, marginBottom: '12px' }} />
-            <label style={lbl}>Foto (opcional)</label>
-            <input type="file" accept="image/*" capture="environment" onChange={e => {
-              const file = e.target.files?.[0] || null
-              setMermaFoto(file)
-              setMermaFotoUrl(file ? URL.createObjectURL(file) : null)
-            }} style={{ ...inp, padding: '8px', marginBottom: '8px' }} />
-            {mermaFotoUrl && <img src={mermaFotoUrl} alt="preview" style={{ width: '100%', maxHeight: '140px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #374151', marginBottom: '12px' }} />}
-            <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
-              <button onClick={() => { setMermaItem(null); setMermaFoto(null); setMermaFotoUrl(null) }} style={{ flex: 1, background: 'transparent', border: '1px solid #374151', borderRadius: '8px', padding: '10px', color: '#9ca3af', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={saveMerma} disabled={saving} style={{ flex: 1, background: '#f97316', border: 'none', borderRadius: '8px', padding: '10px', color: 'white', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>{saving ? 'Guardando...' : 'Registrar pérdida'}</button>
+              <button onClick={() => setConfirmEliminar(null)} style={{ flex: 1, background: 'transparent', border: '1px solid #374151', borderRadius: '8px', padding: '14px', color: '#9ca3af', fontSize: '14px', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={() => eliminar(confirmEliminar.id)} disabled={saving} style={{ flex: 1, background: '#dc2626', border: 'none', borderRadius: '8px', padding: '14px', color: 'white', fontSize: '14px', cursor: 'pointer', fontWeight: 600 }}>{saving ? 'Eliminando...' : 'Eliminar'}</button>
             </div>
           </div>
         </div>
