@@ -1,93 +1,247 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useRestaurant } from '@/context/RestaurantContext'
+
+const inp: React.CSSProperties = {
+  background: '#1f2937', border: '1px solid #374151', borderRadius: '8px',
+  padding: '10px 14px', color: '#f9fafb', fontSize: '14px', outline: 'none',
+  boxSizing: 'border-box', width: '100%'
+}
+const lbl: React.CSSProperties = { fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '6px' }
 
 export default function ReportesPage() {
-  const [data, setData] = useState<any>({ gastoTotal: 0, topProveedores: [], mermas: [] })
-  const [loading, setLoading] = useState(true)
+  const { selectedId: restaurantId } = useRestaurant()
+  const [mermas, setMermas] = useState<any[]>([])
+  const [mermas2, setMermas2] = useState<any[]>([])
+  const [productos, setProductos] = useState<string[]>([])
+  const [loading, setLoading] = useState(false)
+  const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null)
+
+  // Periodo 1
+  const [desde1, setDesde1] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0]
+  })
+  const [hasta1, setHasta1] = useState(new Date().toISOString().split('T')[0])
+
+  // Periodo 2 (comparativa)
+  const [desde2, setDesde2] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 14); return d.toISOString().split('T')[0]
+  })
+  const [hasta2, setHasta2] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0]
+  })
+
+  const [filtroProd, setFiltroProd] = useState<string>('todos')
+  const [buscarProd, setBuscarProd] = useState('')
+  const [buscarDesde, setBuscarDesde] = useState('')
+  const [buscarHasta, setBuscarHasta] = useState('')
+  const [totalBusqueda, setTotalBusqueda] = useState<{ cantidad: number; unidad: string } | null>(null)
+  const [buscando, setBuscando] = useState(false)
 
   useEffect(() => {
-    const load = async () => {
-      const { data: profile } = await supabase.from('profiles').select('restaurant_id').eq('id', (await supabase.auth.getUser()).data.user!.id).single()
-      if (!profile) return
-      const rid = profile.restaurant_id
-      const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
-
-      const [{ data: pedidos }, { data: mermas }] = await Promise.all([
-        supabase.from('pedidos').select('*, proveedores(nombre)').eq('restaurant_id', rid).gte('fecha', inicioMes),
-        supabase.from('mermas').select('*').eq('restaurant_id', rid).gte('registrado_en', inicioMes + 'T00:00:00'),
-      ])
-
-      const gastoTotal = (pedidos || []).reduce((a: number, p: any) => a + (p.monto_total || 0), 0)
-
-      const porProveedor: Record<string, number> = {}
-      ;(pedidos || []).forEach((p: any) => {
-        const nombre = p.proveedores?.nombre || 'Sin proveedor'
-        porProveedor[nombre] = (porProveedor[nombre] || 0) + (p.monto_total || 0)
-      })
-      const topProveedores = Object.entries(porProveedor).sort((a, b) => b[1] - a[1]).slice(0, 5)
-
-      setData({ gastoTotal, topProveedores, mermas: mermas || [] })
-      setLoading(false)
+    if (restaurantId) {
+      cargarMermas()
+      cargarProductos()
     }
-    load()
-  }, [])
+  }, [restaurantId, desde1, hasta1, desde2, hasta2])
 
-  if (loading) return <div style={{ color: '#6b7280', padding: '40px', textAlign: 'center' }}>Cargando...</div>
+  const cargarMermas = async () => {
+    setLoading(true)
+    const [{ data: m1 }, { data: m2 }] = await Promise.all([
+      supabase.from('mermas').select('*').eq('restaurant_id', restaurantId).gte('fecha', desde1).lte('fecha', hasta1).order('fecha', { ascending: false }),
+      supabase.from('mermas').select('*').eq('restaurant_id', restaurantId).gte('fecha', desde2).lte('fecha', hasta2).order('fecha', { ascending: false }),
+    ])
+    setMermas(m1 || [])
+    setMermas2(m2 || [])
+    setLoading(false)
+  }
+
+  const cargarProductos = async () => {
+    const { data } = await supabase.from('mermas').select('producto').eq('restaurant_id', restaurantId)
+    const unicos = [...new Set((data || []).map((m: any) => m.producto))].sort()
+    setProductos(unicos)
+  }
+
+  const buscarTotal = async () => {
+    if (!buscarProd || !buscarDesde || !buscarHasta) return
+    setBuscando(true)
+    const { data } = await supabase.from('mermas').select('cantidad, unidad')
+      .eq('restaurant_id', restaurantId)
+      .eq('producto', buscarProd)
+      .gte('fecha', buscarDesde)
+      .lte('fecha', buscarHasta)
+    const total = (data || []).reduce((a: number, m: any) => a + m.cantidad, 0)
+    const unidad = data?.[0]?.unidad || ''
+    setTotalBusqueda({ cantidad: total, unidad })
+    setBuscando(false)
+  }
+
+  const mermasFiltradas = filtroProd === 'todos' ? mermas : mermas.filter(m => m.producto === filtroProd)
+
+  // Agrupar por producto para comparativa
+  const agrupar = (lista: any[]) => {
+    const map: Record<string, number> = {}
+    for (const m of lista) {
+      map[m.producto] = (map[m.producto] || 0) + m.cantidad
+    }
+    return map
+  }
+
+  const grupo1 = agrupar(mermas)
+  const grupo2 = agrupar(mermas2)
+  const todosProductos = [...new Set([...Object.keys(grupo1), ...Object.keys(grupo2)])].sort()
+
+  const maxVal = Math.max(...todosProductos.map(p => Math.max(grupo1[p] || 0, grupo2[p] || 0)), 1)
 
   return (
     <div>
       <div style={{ marginBottom: '28px' }}>
         <h1 style={{ fontSize: '22px', fontWeight: 600, color: '#f9fafb' }}>Reportes</h1>
-        <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>Resumen del mes actual</p>
+        <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>Mermas y pérdidas</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '28px' }}>
-        <div style={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '12px', padding: '24px' }}>
-          <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '8px' }}>Gasto total del mes</div>
-          <div style={{ fontSize: '32px', fontWeight: 600, color: '#4ade80' }}>${data.gastoTotal.toLocaleString('es-AR')}</div>
-        </div>
-        <div style={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '12px', padding: '24px' }}>
-          <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '8px' }}>Mermas registradas</div>
-          <div style={{ fontSize: '32px', fontWeight: 600, color: '#f87171' }}>{data.mermas.length}</div>
-        </div>
-      </div>
-
+      {/* Rangos de fechas */}
       <div style={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '12px', padding: '20px', marginBottom: '20px' }}>
-        <h2 style={{ fontSize: '14px', fontWeight: 500, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '16px' }}>
-          Top proveedores por gasto
-        </h2>
-        {data.topProveedores.length === 0 && <p style={{ color: '#6b7280', fontSize: '14px' }}>Sin datos este mes</p>}
-        {data.topProveedores.map(([nombre, monto]: [string, number], i: number) => {
-          const pct = Math.round((monto / data.gastoTotal) * 100)
-          return (
-            <div key={nombre} style={{ marginBottom: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ fontSize: '13px', color: '#e5e7eb' }}>{i + 1}. {nombre}</span>
-                <span style={{ fontSize: '13px', color: '#9ca3af' }}>${monto.toLocaleString('es-AR')} ({pct}%)</span>
-              </div>
-              <div style={{ height: '4px', background: '#374151', borderRadius: '2px', overflow: 'hidden' }}>
-                <div style={{ width: `${pct}%`, height: '100%', background: '#f97316', borderRadius: '2px' }} />
-              </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          <div>
+            <div style={{ fontSize: '12px', color: '#f97316', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>Período 1</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div><label style={lbl}>Desde</label><input type="date" value={desde1} onChange={e => setDesde1(e.target.value)} style={inp} /></div>
+              <div><label style={lbl}>Hasta</label><input type="date" value={hasta1} onChange={e => setHasta1(e.target.value)} style={inp} /></div>
             </div>
-          )
-        })}
+          </div>
+          <div>
+            <div style={{ fontSize: '12px', color: '#60a5fa', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>Período 2 (comparativa)</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div><label style={lbl}>Desde</label><input type="date" value={desde2} onChange={e => setDesde2(e.target.value)} style={inp} /></div>
+              <div><label style={lbl}>Hasta</label><input type="date" value={hasta2} onChange={e => setHasta2(e.target.value)} style={inp} /></div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {data.mermas.length > 0 && (
-        <div style={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '12px', overflow: 'hidden' }}>
-          <div style={{ padding: '16px 20px', background: '#111827', borderBottom: '1px solid #374151' }}>
-            <h2 style={{ fontSize: '14px', fontWeight: 500, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Mermas del mes
-            </h2>
+      {/* Totalizador */}
+      <div style={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '12px', padding: '20px', marginBottom: '20px' }}>
+        <div style={{ fontSize: '13px', fontWeight: 600, color: '#f97316', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '14px' }}>Buscar total por producto</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '10px', alignItems: 'flex-end' }}>
+          <div>
+            <label style={lbl}>Producto</label>
+            <select value={buscarProd} onChange={e => setBuscarProd(e.target.value)} style={inp}>
+              <option value="">Seleccioná un producto</option>
+              {productos.map(p => <option key={p}>{p}</option>)}
+            </select>
           </div>
-          {data.mermas.map((m: any, i: number) => (
-            <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', padding: '12px 20px', alignItems: 'center', borderBottom: i < data.mermas.length - 1 ? '1px solid #1f2937' : 'none' }}>
-              <div style={{ fontSize: '14px', color: '#f9fafb' }}>{m.producto}</div>
-              <div style={{ fontSize: '13px', color: '#f87171' }}>{m.cantidad} {m.unidad}</div>
-              <div style={{ fontSize: '12px', color: '#6b7280' }}>{m.motivo || '—'}</div>
+          <div>
+            <label style={lbl}>Desde</label>
+            <input type="date" value={buscarDesde} onChange={e => setBuscarDesde(e.target.value)} style={inp} />
+          </div>
+          <div>
+            <label style={lbl}>Hasta</label>
+            <input type="date" value={buscarHasta} onChange={e => setBuscarHasta(e.target.value)} style={inp} />
+          </div>
+          <button onClick={buscarTotal} disabled={buscando} style={{ background: '#f97316', border: 'none', borderRadius: '8px', padding: '10px 16px', color: 'white', fontSize: '13px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            {buscando ? '...' : 'Buscar'}
+          </button>
+        </div>
+        {totalBusqueda !== null && (
+          <div style={{ marginTop: '14px', background: '#111827', borderRadius: '8px', padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '13px', color: '#9ca3af' }}>{buscarProd} entre {buscarDesde} y {buscarHasta}</span>
+            <span style={{ fontSize: '20px', fontWeight: 600, color: '#f97316' }}>
+              {totalBusqueda.cantidad.toFixed(2)} {totalBusqueda.unidad}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Comparativa gráfica */}
+      {todosProductos.length > 0 && (
+        <div style={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '12px', padding: '20px', marginBottom: '20px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 600, color: '#f97316', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '16px' }}>Comparativa de mermas</div>
+          <div style={{ display: 'flex', gap: '16px', marginBottom: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', borderRadius: '2px', background: '#f97316' }} /><span style={{ fontSize: '12px', color: '#9ca3af' }}>Período 1</span></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', borderRadius: '2px', background: '#60a5fa' }} /><span style={{ fontSize: '12px', color: '#9ca3af' }}>Período 2</span></div>
+          </div>
+          <div style={{ display: 'grid', gap: '12px' }}>
+            {todosProductos.map(prod => {
+              const v1 = grupo1[prod] || 0
+              const v2 = grupo2[prod] || 0
+              return (
+                <div key={prod}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '13px', color: '#f9fafb' }}>{prod}</span>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      <span style={{ fontSize: '12px', color: '#f97316' }}>{v1.toFixed(1)}</span>
+                      <span style={{ fontSize: '12px', color: '#60a5fa' }}>{v2.toFixed(1)}</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    <div style={{ height: '8px', background: '#111827', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${(v1 / maxVal) * 100}%`, background: '#f97316', borderRadius: '4px', transition: 'width 0.3s' }} />
+                    </div>
+                    <div style={{ height: '8px', background: '#111827', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${(v2 / maxVal) * 100}%`, background: '#60a5fa', borderRadius: '4px', transition: 'width 0.3s' }} />
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Filtro producto */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+        <button onClick={() => setFiltroProd('todos')} style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', background: filtroProd === 'todos' ? '#1f2937' : 'transparent', border: `1px solid ${filtroProd === 'todos' ? '#374151' : 'transparent'}`, color: filtroProd === 'todos' ? '#f97316' : '#6b7280' }}>Todos</button>
+        {productos.map(p => (
+          <button key={p} onClick={() => setFiltroProd(p)} style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', background: filtroProd === p ? '#1f2937' : 'transparent', border: `1px solid ${filtroProd === p ? '#374151' : 'transparent'}`, color: filtroProd === p ? '#f97316' : '#6b7280' }}>{p}</button>
+        ))}
+      </div>
+
+      {/* Lista de mermas */}
+      {loading ? (
+        <div style={{ color: '#6b7280', padding: '40px', textAlign: 'center' }}>Cargando...</div>
+      ) : mermasFiltradas.length === 0 ? (
+        <div style={{ color: '#6b7280', padding: '40px', textAlign: 'center', background: '#1f2937', borderRadius: '12px', border: '1px solid #374151' }}>
+          No hay mermas en el período seleccionado.
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: '10px' }}>
+          {mermasFiltradas.map(m => (
+            <div key={m.id} style={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '10px', padding: '16px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '16px', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: '14px', color: '#f9fafb', fontWeight: 500 }}>{m.producto}</div>
+                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>{new Date(m.fecha + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '16px', color: '#f87171', fontWeight: 600 }}>{m.cantidad} {m.unidad}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '13px', color: '#9ca3af' }}>{m.motivo || '—'}</div>
+              </div>
+              <div>
+                {m.foto_url ? (
+                  <img
+                    src={m.foto_url} alt="merma"
+                    onClick={() => setFotoAmpliada(m.foto_url)}
+                    style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #374151', cursor: 'pointer' }}
+                  />
+                ) : (
+                  <div style={{ width: '60px', height: '60px', background: '#111827', borderRadius: '6px', border: '1px solid #374151', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '18px' }}>📷</span>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Foto ampliada */}
+      {fotoAmpliada && (
+        <div onClick={() => setFotoAmpliada(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, cursor: 'pointer' }}>
+          <img src={fotoAmpliada} alt="foto ampliada" style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px' }} />
+          <button style={{ position: 'absolute', top: '20px', right: '20px', background: 'transparent', border: '1px solid #374151', borderRadius: '6px', padding: '6px 12px', color: 'white', cursor: 'pointer', fontSize: '14px' }}>✕ Cerrar</button>
         </div>
       )}
     </div>
