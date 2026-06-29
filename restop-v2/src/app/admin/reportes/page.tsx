@@ -11,12 +11,14 @@ const inp: React.CSSProperties = {
 const lbl: React.CSSProperties = { fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '6px' }
 
 export default function ReportesPage() {
-  const { selectedId: restaurantId } = useRestaurant()
+  const { selectedId: restaurantId, role } = useRestaurant()
   const [mermas, setMermas] = useState<any[]>([])
   const [mermas2, setMermas2] = useState<any[]>([])
   const [productos, setProductos] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null)
+  const [confirmEliminar, setConfirmEliminar] = useState<any>(null)
+  const [eliminando, setEliminando] = useState(false)
 
   // Periodo 1
   const [desde1, setDesde1] = useState(() => {
@@ -61,6 +63,15 @@ export default function ReportesPage() {
     const { data } = await supabase.from('mermas').select('producto').eq('restaurant_id', restaurantId)
     const unicos = [...new Set((data || []).map((m: any) => m.producto))].sort()
     setProductos(unicos)
+  }
+
+  const eliminarMerma = async (id: string) => {
+    setEliminando(true)
+    await supabase.from('mermas').delete().eq('id', id)
+    setEliminando(false)
+    setConfirmEliminar(null)
+    cargarMermas()
+    cargarProductos()
   }
 
   const buscarTotal = async () => {
@@ -219,7 +230,7 @@ export default function ReportesPage() {
               <div>
                 <div style={{ fontSize: '13px', color: '#9ca3af' }}>{m.motivo || '—'}</div>
               </div>
-              <div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                 {m.foto_url ? (
                   <img
                     src={m.foto_url} alt="merma"
@@ -230,6 +241,12 @@ export default function ReportesPage() {
                   <div style={{ width: '60px', height: '60px', background: '#111827', borderRadius: '6px', border: '1px solid #374151', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <span style={{ fontSize: '18px' }}>📷</span>
                   </div>
+                )}
+                {(role === 'admin' || role === 'franquiciado') && (
+                  <button onClick={() => setConfirmEliminar(m)}
+                    style={{ fontSize: '11px', padding: '3px 8px', background: 'transparent', border: '1px solid #374151', borderRadius: '6px', color: '#f87171', cursor: 'pointer' }}>
+                    🗑
+                  </button>
                 )}
               </div>
             </div>
@@ -242,6 +259,24 @@ export default function ReportesPage() {
         <div onClick={() => setFotoAmpliada(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, cursor: 'pointer' }}>
           <img src={fotoAmpliada} alt="foto ampliada" style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px' }} />
           <button style={{ position: 'absolute', top: '20px', right: '20px', background: 'transparent', border: '1px solid #374151', borderRadius: '6px', padding: '6px 12px', color: 'white', cursor: 'pointer', fontSize: '14px' }}>✕ Cerrar</button>
+        </div>
+      )}
+
+      {/* Confirmar eliminar merma */}
+      {confirmEliminar && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
+          <div style={{ background: '#111827', border: '1px solid #7f1d1d', borderRadius: '16px', padding: '28px', width: '360px', maxWidth: '90vw' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#f9fafb', marginBottom: '8px' }}>¿Eliminar merma?</h2>
+            <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '24px' }}>
+              <strong style={{ color: '#f9fafb' }}>{confirmEliminar.producto}</strong> — {confirmEliminar.cantidad} {confirmEliminar.unidad} del {new Date(confirmEliminar.fecha + 'T12:00:00').toLocaleDateString('es-AR')}
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setConfirmEliminar(null)} style={{ flex: 1, background: 'transparent', border: '1px solid #374151', borderRadius: '8px', padding: '10px', color: '#9ca3af', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={() => eliminarMerma(confirmEliminar.id)} disabled={eliminando} style={{ flex: 1, background: '#dc2626', border: 'none', borderRadius: '8px', padding: '10px', color: 'white', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>
+                {eliminando ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
