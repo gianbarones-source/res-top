@@ -80,6 +80,7 @@ function CajaFormulario({ restaurantId, userId, onSaved }: {
     setParseoMsg('Procesando...')
     setEfectivoEsperado(null)
     try {
+      // @ts-ignore
       const XLSX = await import('xlsx')
       const buffer = await file.arrayBuffer()
       const wb = XLSX.read(buffer, { type: 'array' })
