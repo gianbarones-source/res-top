@@ -63,14 +63,20 @@ export default function ProveedoresPage() {
 
   const generarMensaje = (prov: any) => {
     const hoy = new Date().getDay() || 7
+    const esFinde = [4, 5, 6, 0].includes(new Date().getDay())
     const diasACubrir = prov.tipo_pedido === 'B' ? diasHastaProximaEntrega(prov.dias_entrega, hoy) : 1
     const proxEntrega = prov.dias_entrega?.map((d: number) => DIAS[d]).join('/') || ''
 
     const items = stock
-      .filter(s => s.proveedor_id === prov.id && s.cantidad_actual <= s.cantidad_minima)
+      .filter(s => {
+        if (s.proveedor_id !== prov.id) return false
+        const objetivo = esFinde && s.cantidad_objetivo_finde ? s.cantidad_objetivo_finde : s.cantidad_objetivo
+        return s.cantidad_actual < objetivo
+      })
       .map(s => {
-        const objetivo = s.es_objetivo_por_dia ? s.cantidad_objetivo * diasACubrir : s.cantidad_objetivo
-        const pedir = Math.max(0, objetivo - s.cantidad_actual)
+        const objetivo = esFinde && s.cantidad_objetivo_finde ? s.cantidad_objetivo_finde : s.cantidad_objetivo
+        const obj = s.es_objetivo_por_dia ? objetivo * diasACubrir : objetivo
+        const pedir = Math.max(0, obj - s.cantidad_actual)
         return pedir > 0 ? `- ${s.producto}: ${pedir} ${s.unidad}` : null
       }).filter(Boolean)
 
@@ -148,7 +154,7 @@ export default function ProveedoresPage() {
           </div>
         )}
         {proveedores.map(prov => {
-          const itemsBajos = stock.filter(s => s.proveedor_id === prov.id && s.cantidad_actual <= s.cantidad_minima).length
+          const esFinde = [4,5,6,0].includes(new Date().getDay()); const itemsBajos = stock.filter(s => { if(s.proveedor_id !== prov.id) return false; const obj = esFinde && s.cantidad_objetivo_finde ? s.cantidad_objetivo_finde : s.cantidad_objetivo; return s.cantidad_actual < obj }).length
           return (
             <div key={prov.id} style={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '12px', padding: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '12px' }}>
