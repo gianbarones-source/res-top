@@ -34,24 +34,38 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         .from('profiles')
         .select('restaurant_id, role')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()
 
       if (!profile) return
       setRole(profile.role)
 
       if (profile.role === 'empleado') {
-        // Empleado solo ve su local
+        // Empleado: solo su restaurant asignado en profiles
         const { data: rest } = await supabase
           .from('restaurants')
           .select('id, name')
           .eq('id', profile.restaurant_id)
-          .single()
+          .maybeSingle()
         if (rest) {
           setRestaurants([rest])
           setSelectedId(rest.id)
         }
+      } else if (profile.role === 'admin') {
+        // Admin: todos los restaurants (RLS ya filtra via get_my_restaurant_ids)
+        const { data: todos } = await supabase
+          .from('restaurants')
+          .select('id, name')
+          .order('name')
+
+        const rests = (todos || []) as Restaurant[]
+        if (rests.length > 0) {
+          setRestaurants(rests)
+          const saved = localStorage.getItem('restop_selected_restaurant')
+          const valid = rests.find(r => r.id === saved)
+          setSelectedId(valid ? valid.id : rests[0].id)
+        }
       } else {
-        // Admin y franquiciado ven sus locales asignados
+        // Franquiciado: sus restaurants via franquiciado_restaurants
         const { data: asignados } = await supabase
           .from('franquiciado_restaurants')
           .select('restaurant_id, restaurants(id, name)')
@@ -66,17 +80,6 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           const saved = localStorage.getItem('restop_selected_restaurant')
           const valid = rests.find(r => r.id === saved)
           setSelectedId(valid ? valid.id : rests[0].id)
-        } else if (profile.restaurant_id) {
-          // Fallback: usar restaurant_id del profile
-          const { data: rest } = await supabase
-            .from('restaurants')
-            .select('id, name')
-            .eq('id', profile.restaurant_id)
-            .single()
-          if (rest) {
-            setRestaurants([rest])
-            setSelectedId(rest.id)
-          }
         }
       }
     }
