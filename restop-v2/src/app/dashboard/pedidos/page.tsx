@@ -96,7 +96,7 @@ function PedidosActivos({ pedidos, proveedores, role, onRefresh }: { pedidos: an
       proveedor_id: nuevo.proveedor_id,
       fecha: nuevo.fecha,
       monto_total: nuevo.monto_total ? parseFloat(nuevo.monto_total) : null,
-      descripcion: nuevo.descripcion.trim() || null,
+      notas: nuevo.descripcion.trim() || null,
       estado: 'pendiente'
     })
     setSaving(false)
@@ -162,7 +162,7 @@ function PedidosActivos({ pedidos, proveedores, role, onRefresh }: { pedidos: an
             <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr 160px', padding: '14px 20px', alignItems: 'center', borderBottom: i < filtrados.length - 1 ? '1px solid #1f2937' : 'none' }}>
               <div>
                 <div style={{ fontSize: '14px', color: '#f9fafb' }}>{p.proveedores?.nombre || '—'}</div>
-                {p.descripcion && <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>{p.descripcion}</div>}
+                {p.notas && <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>{p.notas}</div>}
               </div>
               <div style={{ fontSize: '13px', color: '#9ca3af' }}>{new Date(p.fecha + 'T12:00:00').toLocaleDateString('es-AR')}</div>
               <div>
@@ -281,7 +281,7 @@ function PedidosAbonados({ pedidos, proveedores }: { pedidos: any[]; proveedores
           <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr', padding: '14px 20px', alignItems: 'center', borderBottom: i < abonados.length - 1 ? '1px solid #1f2937' : 'none' }}>
             <div>
               <div style={{ fontSize: '14px', color: '#f9fafb' }}>{p.proveedores?.nombre || '—'}</div>
-              {p.descripcion && <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>{p.descripcion}</div>}
+              {p.notas && <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>{p.notas}</div>}
             </div>
             <div style={{ fontSize: '13px', color: '#9ca3af' }}>{new Date(p.fecha + 'T12:00:00').toLocaleDateString('es-AR')}</div>
             <div style={{ fontSize: '14px', color: '#4ade80', fontWeight: 500 }}>${(p.monto_recibido || p.monto_total || 0).toLocaleString('es-AR')}</div>
