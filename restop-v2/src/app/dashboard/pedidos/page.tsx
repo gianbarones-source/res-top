@@ -145,53 +145,67 @@ function PedidosActivos({ pedidos, proveedores, role, onRefresh }: { pedidos: an
       )}
 
       {/* Lista */}
-      <div style={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '12px', overflow: 'hidden', marginBottom: '16px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr 160px', padding: '10px 20px', background: '#111827', borderBottom: '1px solid #374151' }}>
-          {['Proveedor', 'Fecha', 'Monto', 'Estado', 'Acciones'].map(h => (
-            <div key={h} style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</div>
-          ))}
-        </div>
+      {/* Lista agrupada por proveedor */}
+      {filtrados.length === 0 && (
+        <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280', fontSize: '14px', background: '#1f2937', borderRadius: '12px', border: '1px solid #374151' }}>No hay pedidos en este período.</div>
+      )}
 
-        {filtrados.length === 0 && (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280', fontSize: '14px' }}>No hay pedidos en este período.</div>
-        )}
-
-        {filtrados.map((p, i) => {
-          const cfg = ESTADO_CFG[p.estado] || ESTADO_CFG.pendiente
+      {(() => {
+        // Agrupar por proveedor
+        const grupos: Record<string, any[]> = {}
+        for (const p of filtrados) {
+          const nombre = p.proveedores?.nombre || 'Sin proveedor'
+          if (!grupos[nombre]) grupos[nombre] = []
+          grupos[nombre].push(p)
+        }
+        return Object.entries(grupos).map(([nombre, items]) => {
+          const subtotal = items.filter(p => p.estado === 'recibido' || p.estado === 'con_diferencias').reduce((a, p) => a + (p.monto_recibido || p.monto_total || 0), 0)
           return (
-            <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr 160px', padding: '14px 20px', alignItems: 'center', borderBottom: i < filtrados.length - 1 ? '1px solid #1f2937' : 'none' }}>
-              <div>
-                <div style={{ fontSize: '14px', color: '#f9fafb' }}>{p.proveedores?.nombre || '—'}</div>
-                {p.notas && <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>{p.notas}</div>}
-              </div>
-              <div style={{ fontSize: '13px', color: '#9ca3af' }}>{new Date(p.fecha + 'T12:00:00').toLocaleDateString('es-AR')}</div>
-              <div>
-                <div style={{ fontSize: '14px', color: '#f9fafb' }}>{p.monto_recibido ? `$${p.monto_recibido.toLocaleString('es-AR')}` : p.monto_total ? `$${p.monto_total.toLocaleString('es-AR')}` : '—'}</div>
-                {p.monto_recibido && p.monto_total && p.monto_recibido !== p.monto_total && (
-                  <div style={{ fontSize: '11px', color: '#6b7280' }}>Pedido: ${p.monto_total.toLocaleString('es-AR')}</div>
+            <div key={nombre} style={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '12px', overflow: 'hidden', marginBottom: '12px' }}>
+              {/* Header del proveedor */}
+              <div style={{ padding: '12px 20px', background: '#111827', borderBottom: '1px solid #374151', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '14px', fontWeight: 600, color: '#f9fafb' }}>{nombre}</span>
+                {subtotal > 0 && (
+                  <span style={{ fontSize: '13px', color: '#60a5fa', fontWeight: 600 }}>
+                    A pagar: ${subtotal.toLocaleString('es-AR')}
+                  </span>
                 )}
               </div>
-              <div>
-                <span style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '20px', background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
-                  {cfg.label}
-                </span>
-              </div>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {p.estado === 'pendiente' && (
-                  <button onClick={() => setMarcandoRecibido(p)} style={{ fontSize: '11px', padding: '5px 8px', background: '#052e16', border: '1px solid #166534', borderRadius: '6px', color: '#4ade80', cursor: 'pointer' }}>
-                    ✓ Recibido
-                  </button>
-                )}
-                {(p.estado === 'recibido' || p.estado === 'con_diferencias') && (
-                  <button onClick={() => marcarAbonado(p.id)} disabled={marcandoAbonado === p.id} style={{ fontSize: '11px', padding: '5px 8px', background: '#0c1a2e', border: '1px solid #1e3a5f', borderRadius: '6px', color: '#60a5fa', cursor: 'pointer' }}>
-                    {marcandoAbonado === p.id ? '...' : '💰 Abonado'}
-                  </button>
-                )}
-              </div>
+              {/* Pedidos del proveedor */}
+              {items.map((p, i) => {
+                const cfg = ESTADO_CFG[p.estado] || ESTADO_CFG.pendiente
+                return (
+                  <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 160px', padding: '12px 20px', alignItems: 'center', borderBottom: i < items.length - 1 ? '1px solid #1f2937' : 'none' }}>
+                    <div style={{ fontSize: '13px', color: '#9ca3af' }}>
+                      {new Date(p.fecha + 'T12:00:00').toLocaleDateString('es-AR')}
+                      {p.notas && <div style={{ fontSize: '11px', color: '#4b5563', marginTop: '2px' }}>{p.notas}</div>}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '14px', color: '#f9fafb' }}>{p.monto_recibido ? `$${p.monto_recibido.toLocaleString('es-AR')}` : p.monto_total ? `$${p.monto_total.toLocaleString('es-AR')}` : '—'}</div>
+                      {p.monto_recibido && p.monto_total && p.monto_recibido !== p.monto_total && (
+                        <div style={{ fontSize: '11px', color: '#6b7280' }}>Estimado: ${p.monto_total.toLocaleString('es-AR')}</div>
+                      )}
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '20px', background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>{cfg.label}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {p.estado === 'pendiente' && (
+                        <button onClick={() => setMarcandoRecibido(p)} style={{ fontSize: '11px', padding: '5px 8px', background: '#052e16', border: '1px solid #166534', borderRadius: '6px', color: '#4ade80', cursor: 'pointer' }}>✓ Recibido</button>
+                      )}
+                      {(p.estado === 'recibido' || p.estado === 'con_diferencias') && (
+                        <button onClick={() => marcarAbonado(p.id)} disabled={marcandoAbonado === p.id} style={{ fontSize: '11px', padding: '5px 8px', background: '#0c1a2e', border: '1px solid #1e3a5f', borderRadius: '6px', color: '#60a5fa', cursor: 'pointer' }}>
+                          {marcandoAbonado === p.id ? '...' : '💰 Abonado'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )
-        })}
-      </div>
+        })
+      })()}
 
       {/* Botón nuevo pedido */}
       {(role === 'admin' || role === 'franquiciado') && (
