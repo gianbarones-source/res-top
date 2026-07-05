@@ -65,6 +65,30 @@ const defaultForm = (turno: 'TM' | 'TN' = 'TM'): FormState => ({
 })
 
 // ─── Formulario ───────────────────────────────────────────────────────────────
+// ─── GastoRow independiente ───────────────────────────────────────────────────
+function GastoRow({ g, i, gastos, setGastos }: { g: Gasto; i: number; gastos: Gasto[]; setGastos: (g: Gasto[]) => void }) {
+  const s: React.CSSProperties = { background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', padding: '10px 14px', color: '#f9fafb', fontSize: '14px', outline: 'none', boxSizing: 'border-box', width: '100%' }
+  return (
+    <div style={{ marginBottom: '10px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 32px', gap: '8px', alignItems: 'center' }}>
+        <select value={g.categoria} onChange={e => setGastos(gastos.map((x, j) => j === i ? { ...x, categoria: e.target.value } : x))} style={s}>
+          {CATEGORIAS_GASTO.map(c => <option key={c}>{c}</option>)}
+        </select>
+        <input type="number" value={g.monto} onChange={e => setGastos(gastos.map((x, j) => j === i ? { ...x, monto: e.target.value } : x))} placeholder="$ Monto" style={s} />
+        <button onClick={() => setGastos(gastos.filter((_, j) => j !== i))} style={{ background: 'transparent', border: '1px solid #374151', borderRadius: '6px', color: '#f87171', cursor: 'pointer', fontSize: '14px', padding: '4px' }}>✕</button>
+      </div>
+      {g.categoria === 'Adelanto' && (
+        <input value={g.nombre || ''} onChange={e => setGastos(gastos.map((x, j) => j === i ? { ...x, nombre: e.target.value } : x))}
+          placeholder="Nombre del empleado" style={{ ...s, marginTop: '6px', fontSize: '13px' }} />
+      )}
+      {g.categoria === 'Otro' && (
+        <input value={g.descripcion || ''} onChange={e => setGastos(gastos.map((x, j) => j === i ? { ...x, descripcion: e.target.value } : x))}
+          placeholder="¿Qué es este gasto?" style={{ ...s, marginTop: '6px', fontSize: '13px' }} />
+      )}
+    </div>
+  )
+}
+
 function CajaFormulario({ restaurantId, userId, onSaved }: {
   restaurantId: string; userId: string; onSaved: () => void
 }) {
@@ -171,25 +195,7 @@ function CajaFormulario({ restaurantId, userId, onSaved }: {
     onSaved()
   }
 
-  const GastoRow = ({ g, i }: { g: Gasto; i: number }) => (
-    <div style={{ marginBottom: '10px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 32px', gap: '8px', alignItems: 'center' }}>
-        <select value={g.categoria} onChange={e => set('gastos', form.gastos.map((x, j) => j === i ? { ...x, categoria: e.target.value } : x))} style={inp}>
-          {CATEGORIAS_GASTO.map(c => <option key={c}>{c}</option>)}
-        </select>
-        <input type="number" value={g.monto} onChange={e => set('gastos', form.gastos.map((x, j) => j === i ? { ...x, monto: e.target.value } : x))} placeholder="$ Monto" style={inp} />
-        <button onClick={() => set('gastos', form.gastos.filter((_, j) => j !== i))} style={{ background: 'transparent', border: '1px solid #374151', borderRadius: '6px', color: '#f87171', cursor: 'pointer', fontSize: '14px', padding: '4px' }}>✕</button>
-      </div>
-      {g.categoria === 'Adelanto' && (
-        <input value={g.nombre || ''} onChange={e => set('gastos', form.gastos.map((x, j) => j === i ? { ...x, nombre: e.target.value } : x))}
-          placeholder="Nombre del empleado" style={{ ...inp, marginTop: '6px', fontSize: '13px' }} />
-      )}
-      {g.categoria === 'Otro' && (
-        <input value={g.descripcion || ''} onChange={e => set('gastos', form.gastos.map((x, j) => j === i ? { ...x, descripcion: e.target.value } : x))}
-          placeholder="¿Qué es este gasto?" style={{ ...inp, marginTop: '6px', fontSize: '13px' }} />
-      )}
-    </div>
-  )
+
 
   return (
     <div style={{ maxWidth: '700px' }}>
@@ -255,7 +261,7 @@ function CajaFormulario({ restaurantId, userId, onSaved }: {
         <label style={lbl}>Retiros de efectivo $</label>
         <input type="number" value={form.retiros} onChange={e => set('retiros', e.target.value)} placeholder="0" style={{ ...inp, marginBottom: '16px' }} />
         <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '10px' }}>Gastos del turno</div>
-        {form.gastos.map((g, i) => <GastoRow key={i} g={g} i={i} />)}
+        {form.gastos.map((g, i) => <GastoRow key={i} g={g} i={i} gastos={form.gastos} setGastos={(gs) => set('gastos', gs)} />)}
         <button onClick={() => set('gastos', [...form.gastos, { categoria: 'Artículos de limpieza', monto: '' }])} style={{ background: 'transparent', border: '1px dashed #374151', borderRadius: '8px', padding: '8px', width: '100%', color: '#6b7280', fontSize: '12px', cursor: 'pointer', marginBottom: '12px' }}>+ Agregar gasto</button>
         <div style={{ background: '#111827', borderRadius: '8px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ fontSize: '13px', color: '#6b7280' }}>Total gastos + retiros</span>
@@ -537,8 +543,8 @@ function CajaHistorial({ registros, onDeleted, onRefresh }: { registros: any[]; 
                 <div style={{ fontSize: '14px', color: '#f9fafb', fontWeight: 500 }}>{new Date(reg.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })}</div>
                 <div style={{ fontSize: '12px', color: '#6b7280' }}>Turno {reg.turno}</div>
               </div>
-              <div><div style={{ fontSize: '11px', color: '#6b7280' }}>Ventas</div><div style={{ fontSize: '14px', color: '#4ade80', fontWeight: 500 }}>${(reg.vta_total || 0).toLocaleString('es-AR')}</div></div>
-              <div><div style={{ fontSize: '11px', color: '#6b7280' }}>Tickets</div><div style={{ fontSize: '14px', color: '#f9fafb' }}>{reg.vta_total_tickets || 0}</div></div>
+              <div><div style={{ fontSize: '11px', color: '#6b7280' }}>Ventas</div><div style={{ fontSize: '14px', color: '#4ade80', fontWeight: 500 }}>${(reg.turno === 'TN' ? reg.vta_total || 0 : 0).toLocaleString('es-AR')}</div></div>
+              <div><div style={{ fontSize: '11px', color: '#6b7280' }}>Tickets</div><div style={{ fontSize: '14px', color: '#f9fafb' }}>{reg.turno === 'TN' ? reg.vta_total_tickets || 0 : '—'}</div></div>
               <div><div style={{ fontSize: '11px', color: '#6b7280' }}>Apertura</div><div style={{ fontSize: '14px', color: '#60a5fa' }}>${(reg.caja_apertura || 0).toLocaleString('es-AR')}</div></div>
               <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                 <button onClick={e => { e.stopPropagation(); setEditando(reg) }} style={{ background: 'transparent', border: '1px solid #374151', borderRadius: '6px', padding: '4px 8px', color: '#f97316', fontSize: '11px', cursor: 'pointer' }}>✏️</button>
@@ -703,10 +709,10 @@ function CajaMensual({ restaurantId }: { restaurantId: string }) {
     porFecha[r.fecha].push(r)
   }
 
-  const totalVentas = registros.reduce((a, r) => a + (r.vta_total || 0), 0)
+  const totalVentas = registros.filter(r => r.turno === 'TN').reduce((a, r) => a + (r.vta_total || 0), 0)
   const totalGastos = registros.reduce((a, r) => a + (r.gastos || 0) + (r.retiros || 0), 0)
   const totalEfectivo = registros.reduce((a, r) => a + (r.cierre_fisico || 0), 0)
-  const totalTickets = registros.reduce((a, r) => a + (r.vta_total_tickets || 0), 0)
+  const totalTickets = registros.filter(r => r.turno === 'TN').reduce((a, r) => a + (r.vta_total_tickets || 0), 0)
   const diasConDatos = Object.keys(porFecha).length
 
   const inp: React.CSSProperties = { background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', padding: '8px 12px', color: '#f9fafb', fontSize: '14px', outline: 'none' }
@@ -746,9 +752,9 @@ function CajaMensual({ restaurantId }: { restaurantId: string }) {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {Object.entries(porFecha).map(([fecha, turnos]) => {
-                const vtaDia = turnos.reduce((a, r) => a + (r.vta_total || 0), 0)
+                const vtaDia = turnos.filter(r => r.turno === 'TN').reduce((a, r) => a + (r.vta_total || 0), 0)
                 const gastosDia = turnos.reduce((a, r) => a + (r.gastos || 0) + (r.retiros || 0), 0)
-                const ticketsDia = turnos.reduce((a, r) => a + (r.vta_total_tickets || 0), 0)
+                const ticketsDia = turnos.filter(r => r.turno === 'TN').reduce((a, r) => a + (r.vta_total_tickets || 0), 0)
                 return (
                   <div key={fecha} style={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '10px', padding: '14px 18px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
