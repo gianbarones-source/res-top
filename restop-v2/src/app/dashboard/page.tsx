@@ -52,8 +52,8 @@ export default function DashboardPage() {
         supabase.from('stock').select('*').eq('restaurant_id', restaurantId),
         supabase.from('pedidos').select('*, proveedores(nombre)').eq('restaurant_id', restaurantId).eq('estado', 'pendiente').order('fecha', { ascending: false }),
         supabase.from('caja_registros').select('*').eq('restaurant_id', restaurantId).eq('fecha', hoy),
-        supabase.from('caja_registros').select('vta_total').eq('restaurant_id', restaurantId).gte('fecha', inicioMes),
-        supabase.from('caja_registros').select('fecha, vta_total').eq('restaurant_id', restaurantId).gte('fecha', desde7).order('fecha'),
+        supabase.from('caja_registros').select('vta_total, turno').eq('restaurant_id', restaurantId).gte('fecha', inicioMes),
+        supabase.from('caja_registros').select('fecha, vta_total, turno').eq('restaurant_id', restaurantId).gte('fecha', desde7).order('fecha'),
       ])
 
       // Stock alertas
@@ -66,17 +66,17 @@ export default function DashboardPage() {
       setPedidosPendientes(pedidos || [])
 
       // Ventas del mes
-      const totalVentas = (cajaRegistros || []).reduce((a: number, r: any) => a + (r.vta_total || 0), 0)
+      // Ventas del mes: solo registros TN (fuente de verdad del día)
+      const totalVentas = (cajaRegistros || []).filter((r: any) => r.turno === 'TN').reduce((a: number, r: any) => a + (r.vta_total || 0), 0)
       setVentasMes(totalVentas)
 
-      // Caja hoy
       setCajaTM((cajaHoy || []).find((c: any) => c.turno === 'TM') || null)
       setCajaTN((cajaHoy || []).find((c: any) => c.turno === 'TN') || null)
 
-      // Ventas últimos 7 días agrupadas por fecha
+      // Ventas últimos 7 días: solo TN por fecha
       const porFecha: Record<string, number> = {}
       for (const r of cajaSemana || []) {
-        porFecha[r.fecha] = (porFecha[r.fecha] || 0) + (r.vta_total || 0)
+        if (r.turno === 'TN') porFecha[r.fecha] = r.vta_total || 0
       }
       setVentasSemana(ultimos7.map(d => ({ ...d, total: porFecha[d.fecha] || 0 })))
 
@@ -85,7 +85,7 @@ export default function DashboardPage() {
     load()
   }, [restaurantId])
 
-  const totalVentasHoy = (cajaTM?.vta_total || 0) + (cajaTN?.vta_total || 0)
+  const totalVentasHoy = cajaTN?.vta_total || 0
   const maxVenta = Math.max(...ventasSemana.map(d => d.total), 1)
 
   if (loading) return (
