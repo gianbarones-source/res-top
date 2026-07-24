@@ -81,6 +81,27 @@ function ModalProducto({ titulo, form, setForm, onSave, onCancel, error, saving,
   )
 }
 
+function ModalEditarCantidad({ item, onClose, onSave, saving }: { item: any; onClose: () => void; onSave: (cantidad: string) => void; saving: boolean }) {
+  const [cantidad, setCantidad] = useState(String(item.cantidad_actual))
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 50 }}>
+      <div style={{ background: '#111827', border: '1px solid #374151', borderRadius: '16px 16px 0 0', padding: '24px', width: '100%', maxWidth: '500px' }}>
+        <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#f9fafb', marginBottom: '4px' }}>Actualizar cantidad</h2>
+        <p style={{ fontSize: '13px', color: '#f97316', marginBottom: '20px' }}>{item.producto}</p>
+        <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '6px' }}>Cantidad actual ({item.unidad})</label>
+        <input type="number" value={cantidad} onChange={e => setCantidad(e.target.value)}
+          style={{ width: '100%', background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', padding: '14px', color: '#f9fafb', fontSize: '24px', outline: 'none', boxSizing: 'border-box', marginBottom: '20px', textAlign: 'center' }} autoFocus />
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={onClose} style={{ flex: 1, background: 'transparent', border: '1px solid #374151', borderRadius: '8px', padding: '14px', color: '#9ca3af', fontSize: '14px', cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={() => onSave(cantidad)} disabled={saving} style={{ flex: 2, background: '#f97316', border: 'none', borderRadius: '8px', padding: '14px', color: 'white', fontSize: '14px', cursor: 'pointer', fontWeight: 600 }}>
+            {saving ? 'Guardando...' : 'Guardar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ModalMerma({ item, onClose, onSave, saving }: { item: any; onClose: () => void; onSave: (qty: string, motivo: string, foto: File | null) => void; saving: boolean }) {
   const [qty, setQty] = useState('')
   const [motivo, setMotivo] = useState('')
@@ -133,6 +154,8 @@ export default function StockPage() {
   const [busqueda, setBusqueda] = useState('')
 
   const [mermaItem, setMermaItem] = useState<any | null>(null)
+  const [showEditarCantidad, setShowEditarCantidad] = useState(false)
+  const [editarCantidadItem, setEditarCantidadItem] = useState<any>(null)
   const [showAgregar, setShowAgregar] = useState(false)
   const [nuevoForm, setNuevoForm] = useState<ProductoForm>(defaultForm())
   const [errorAgregar, setErrorAgregar] = useState('')
@@ -163,6 +186,15 @@ export default function StockPage() {
   }
 
   useEffect(() => { load() }, [restaurantId])
+
+  const saveEditarCantidad = async (cantidad: string) => {
+    setSaving(true)
+    await supabase.from('stock').update({
+      cantidad_actual: parseFloat(cantidad) || 0,
+      ultima_actualizacion_manual: new Date().toISOString()
+    }).eq('id', editarCantidadItem.id)
+    setSaving(false); setShowEditarCantidad(false); setEditarCantidadItem(null); load()
+  }
 
   const abrirEditar = (item: any) => {
     setEditando(item)
@@ -340,6 +372,11 @@ export default function StockPage() {
                 }}>
                   📉 Merma
                 </button>
+                {role !== 'admin' && (
+                  <button onClick={() => { setEditarCantidadItem(item); setShowEditarCantidad(true) }} style={{ padding: '10px 14px', background: 'transparent', border: '1px solid #374151', borderRadius: '8px', color: '#f97316', fontSize: '13px', cursor: 'pointer' }}>
+                    ✏️
+                  </button>
+                )}
                 {role === 'admin' && (
                   <>
                     <button onClick={() => abrirEditar(item)} style={{ padding: '10px 14px', background: 'transparent', border: '1px solid #374151', borderRadius: '8px', color: '#f97316', fontSize: '13px', cursor: 'pointer' }}>
@@ -359,6 +396,7 @@ export default function StockPage() {
       {/* Modales */}
       {showEditar && <ModalProducto titulo={`Editar: ${editando?.producto}`} form={editForm} setForm={setEditForm} onSave={saveEditar} onCancel={() => setShowEditar(false)} error={errorEditar} saving={saving} proveedores={proveedores} />}
       {showAgregar && <ModalProducto titulo="Agregar producto" form={nuevoForm} setForm={setNuevoForm} onSave={saveNuevo} onCancel={() => setShowAgregar(false)} error={errorAgregar} saving={saving} proveedores={proveedores} />}
+      {showEditarCantidad && editarCantidadItem && <ModalEditarCantidad item={editarCantidadItem} onClose={() => { setShowEditarCantidad(false); setEditarCantidadItem(null) }} onSave={saveEditarCantidad} saving={saving} />}
       {mermaItem && <ModalMerma item={mermaItem} onClose={() => setMermaItem(null)} onSave={saveMerma} saving={saving} />}
 
       {confirmEliminar && (
