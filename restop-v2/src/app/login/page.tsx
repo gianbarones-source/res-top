@@ -20,25 +20,23 @@ export default function LoginPage() {
       return
     }
 
-    // Buscar el profile por username
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, email, role')
-      .eq('username', username.trim().toLowerCase())
-      .single()
+    // Buscar el email por username usando la función RPC
+    // (no expone rol ni otros datos del perfil, solo el email)
+    const { data: email, error: profileError } = await supabase
+      .rpc('get_email_by_username', { p_username: username.trim().toLowerCase() })
 
-    console.log('Profile buscado:', username.trim().toLowerCase())
-    console.log('Profile resultado:', profile, profileError)
+    console.log('Email buscado:', username.trim().toLowerCase())
+    console.log('Email resultado:', email, profileError)
 
-    if (profileError || !profile) {
+    if (profileError || !email) {
       setError('Usuario o contraseña incorrectos')
       setLoading(false)
       return
     }
 
-    // Login con el email del profile
+    // Login con el email resuelto
     const { error: loginError } = await supabase.auth.signInWithPassword({
-      email: profile.email,
+      email,
       password,
     })
 
